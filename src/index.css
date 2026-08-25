@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg-main: #070B12;
+  --bg-card: #0D1524;
+  --bg-subtle: #121D31;
+  --bg-hover: #182742;
+  --text-main: #F1F5F9;
+  --text-muted: #94A3B8;
+}
+
+html.light {
+  color-scheme: light;
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F1F5F9;
+  --bg-hover: #E2E8F0;
+  --text-main: #0F172A;
+  --text-muted: #475569;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: 'Inter', 'Prompt', 'Kanit', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Custom Cyber Hydrology Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 9999px;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #06B6D4;
+}
+
+/* Leaflet Container Overrides */
+.leaflet-container {
+  background: #070B12 !important;
+  font-family: 'Inter', 'Prompt', 'Kanit', sans-serif !important;
+}
+
+html.light .leaflet-container {
+  background: #E2E8F0 !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: #0D1524 !important;
+  color: #22D3EE !important;
+  border: 1px solid #1E293B !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.light .leaflet-control-zoom a {
+  background-color: #FFFFFF !important;
+  color: #0284C7 !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #1E293B !important;
+  color: #67E8F9 !important;
+}
+
+html.light .leaflet-control-zoom a:hover {
+  background-color: #F1F5F9 !important;
+  color: #0369A1 !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(7, 11, 18, 0.8) !important;
+  color: #64748B !important;
+  font-size: 10px !important;
+  backdrop-filter: blur(4px);
+  border-radius: 6px;
+  margin: 4px;
+}
+
+html.light .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: #475569 !important;
+}
+
+.leaflet-control-attribution a {
+  color: #06B6D4 !important;
+}
+
+html.light .leaflet-control-attribution a {
+  color: #0284C7 !important;
+}
+
+/* Print Optimization */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  header, nav, .print\:hidden {
+    display: none !important;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scaleUp {
+  animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
