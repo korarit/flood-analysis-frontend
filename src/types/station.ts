@@ -45,6 +45,9 @@ export interface StationRelation {
   name: LocalizedString;
   stationType: StationType;
   distanceKm: number;            // ระยะทาง (km)
+  travelTimeMinutes?: number;    // เวลาน้ำหลากเดินทางเฉลี่ย (นาที)
+  travelTimeMinutesMin?: number; // เวลาเดินทางเร็วสุด (นาที)
+  travelTimeMinutesMax?: number; // เวลาเดินทางช้าสุด (นาที)
   travelTimeHours?: number;      // เวลาน้ำหลากเดินทางเฉลี่ย (ชั่วโมง)
   travelTimeHoursMin?: number;   // เวลาเดินทางเร็วสุด (ชั่วโมง)
   travelTimeHoursMax?: number;   // เวลาเดินทางช้าสุด (ชั่วโมง)

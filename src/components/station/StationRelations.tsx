@@ -110,22 +110,48 @@ export const StationRelations: React.FC<StationRelationsProps> = ({ station, bas
                       <span className="text-slate-800 dark:text-slate-200 font-bold">{rel.distanceKm} กม.</span>
                     </div>
 
-                    {rel.travelTimeHours && (
-                      <div className="flex justify-between items-center font-mono">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          {isThai ? 'เวลาน้ำหลากเดินทาง:' : 'Hydro Lag Time:'}
-                        </span>
-                        <div className="text-right">
-                          <span className="text-amber-700 dark:text-amber-300 font-bold">~{rel.travelTimeHours} ชม.</span>
-                          {rel.travelTimeHoursMin !== undefined && rel.travelTimeHoursMax !== undefined && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">
-                              ({rel.travelTimeHoursMin}–{rel.travelTimeHoursMax} ชม.)
-                            </span>
-                          )}
+                    {(() => {
+                      const mins = rel.travelTimeMinutes ?? (rel.travelTimeHours ? Math.round(rel.travelTimeHours * 60) : undefined);
+                      const minMins = rel.travelTimeMinutesMin ?? (rel.travelTimeHoursMin ? Math.round(rel.travelTimeHoursMin * 60) : undefined);
+                      const maxMins = rel.travelTimeMinutesMax ?? (rel.travelTimeHoursMax ? Math.round(rel.travelTimeHoursMax * 60) : undefined);
+
+                      if (mins === undefined) return null;
+
+                      let mainText = '';
+                      let rangeText: string | null = null;
+
+                      if (mins < 60) {
+                        mainText = isThai ? `~${mins} นาที` : `~${mins} mins`;
+                        if (minMins !== undefined && maxMins !== undefined) {
+                          rangeText = isThai ? `(${minMins}–${maxMins} นาที)` : `(${minMins}–${maxMins} mins)`;
+                        }
+                      } else {
+                        const hours = rel.travelTimeHours ?? +(mins / 60).toFixed(1);
+                        const minHours = rel.travelTimeHoursMin ?? (minMins ? +(minMins / 60).toFixed(1) : undefined);
+                        const maxHours = rel.travelTimeHoursMax ?? (maxMins ? +(maxMins / 60).toFixed(1) : undefined);
+                        mainText = isThai ? `~${hours} ชม. (${mins} นาที)` : `~${hours} hrs (${mins}m)`;
+                        if (minHours !== undefined && maxHours !== undefined) {
+                          rangeText = isThai ? `(${minHours}–${maxHours} ชม.)` : `(${minHours}–${maxHours} hrs)`;
+                        }
+                      }
+
+                      return (
+                        <div className="flex justify-between items-center font-mono">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {isThai ? 'เวลาน้ำหลากเดินทาง:' : 'Hydro Lag Time:'}
+                          </span>
+                          <div className="text-right">
+                            <span className="text-amber-700 dark:text-amber-300 font-bold">{mainText}</span>
+                            {rangeText && (
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">
+                                {rangeText}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {rel.influenceWeightPercent && (
                       <div className="flex justify-between items-center font-mono">
