@@ -116,7 +116,14 @@ export const StationRelations: React.FC<StationRelationsProps> = ({ station, bas
                           <Clock className="w-3 h-3 text-slate-400" />
                           {isThai ? 'เวลาน้ำหลากเดินทาง:' : 'Hydro Lag Time:'}
                         </span>
-                        <span className="text-amber-700 dark:text-amber-300 font-bold">~{rel.travelTimeHours} ชม.</span>
+                        <div className="text-right">
+                          <span className="text-amber-700 dark:text-amber-300 font-bold">~{rel.travelTimeHours} ชม.</span>
+                          {rel.travelTimeHoursMin !== undefined && rel.travelTimeHoursMax !== undefined && (
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">
+                              ({rel.travelTimeHoursMin}–{rel.travelTimeHoursMax} ชม.)
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
 

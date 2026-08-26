@@ -45,7 +45,9 @@ export interface StationRelation {
   name: LocalizedString;
   stationType: StationType;
   distanceKm: number;            // ระยะทาง (km)
-  travelTimeHours?: number;      // เวลาน้ำหลากเดินทาง (ชั่วโมง)
+  travelTimeHours?: number;      // เวลาน้ำหลากเดินทางเฉลี่ย (ชั่วโมง)
+  travelTimeHoursMin?: number;   // เวลาเดินทางเร็วสุด (ชั่วโมง)
+  travelTimeHoursMax?: number;   // เวลาเดินทางช้าสุด (ชั่วโมง)
   influenceWeightPercent?: number;// น้ำหนักอิทธิพล %
   latestValue: string;           // e.g. "65.0 mm" or "5.82 ม.รทก."
   status: SituationStatus;
