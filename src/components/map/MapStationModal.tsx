@@ -5,6 +5,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { StatusBadge } from '../common/StatusBadge';
 import { TrendIndicator } from '../common/TrendIndicator';
 import { FreshnessBadge } from '../common/FreshnessBadge';
+import { isStationMissingData } from '../../services/stationService';
 import {
   X,
   Waves,
@@ -36,6 +37,7 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
 
   if (!station) return null;
 
+  const isMissing = isStationMissingData(station);
   const isWater = station.stationType === 'water_level';
   const wl = station.waterLevel;
   const rf = station.rainfall;
@@ -48,7 +50,9 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
           <div className="flex items-center gap-3">
             <div
               className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
-                isWater
+                isMissing
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700'
+                  : isWater
                   ? 'bg-cyan-100 dark:bg-cyan-950/70 border border-cyan-300 dark:border-cyan-500/30 text-cyan-700 dark:text-cyan-400'
                   : 'bg-blue-100 dark:bg-blue-950/70 border border-blue-300 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
               }`}
@@ -60,7 +64,7 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
                 <span className="font-mono text-xs font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-100 dark:bg-cyan-950/70 px-2 py-0.5 rounded border border-cyan-300 dark:border-cyan-800/60">
                   {station.code}
                 </span>
-                <StatusBadge status={station.status} size="sm" />
+                <StatusBadge status={isMissing ? 'missing' : station.status} size="sm" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
                 {t(station.name)}
@@ -92,7 +96,26 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
 
         {/* Telemetry Metrics Display (§21, §22) */}
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3 my-3 shadow-xs">
-          {isWater && wl ? (
+          {isMissing ? (
+            <div className="py-4 px-3 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/60 text-center space-y-2">
+              <div className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                {isThai ? 'ไม่มีรายงานข้อมูลล่าสุด' : 'No Recent Telemetry Data'}
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {isThai
+                  ? 'สถานีนี้ไม่มีข้อมูลโทรมาตรในรอบการสังเกตการณ์ล่าสุด'
+                  : 'This station has no active telemetry records in the latest observation snapshot.'}
+              </p>
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <FreshnessBadge freshness={station.freshness} />
+                {station.lastUpdated && station.lastUpdated !== 'ไม่มีข้อมูลล่าสุด' && (
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
+                    ({station.lastUpdated})
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : isWater && wl ? (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -172,6 +195,7 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
             </>
           ) : null}
         </div>
+
       </div>
 
       {/* Footer Actions */}

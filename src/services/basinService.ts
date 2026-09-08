@@ -33,7 +33,15 @@ export function mapR2StationToStation(
   detailThresholds?: any
 ): Station {
   const isWL = item.type === 'water_level';
-  const c = item.current || { status: 'normal', freshness: 'fresh', lastUpdated: new Date().toISOString() };
+  const c = item.current;
+
+  // Determine if telemetry is missing from the R2 snapshot
+  const isMissing =
+    !c ||
+    c.status === 'missing' ||
+    c.freshness === 'missing' ||
+    (isWL && c.stage == null && c.waterLevelMsl == null) ||
+    (!isWL && c.rainfall1h == null && c.rainfall3h == null && c.rainfall6h == null && c.rainfall24h == null && c.rainfallToday == null);
 
   const agencyName = item.agency?.th || 'กรมชลประทาน';
   const agencyEn = item.agency?.en || 'Royal Irrigation Department';
@@ -42,7 +50,7 @@ export function mapR2StationToStation(
   const riverNameEn = item.river?.en || (isWL ? 'Main River' : undefined);
 
   let waterLevelData: Station['waterLevel'] = undefined;
-  if (isWL) {
+  if (isWL && !isMissing && c) {
     const stage = c.stage ?? c.waterLevelMsl ?? 0;
     const wlMsl = c.waterLevelMsl ?? c.stage ?? 0;
     const discharge = c.discharge ?? 0;
@@ -102,7 +110,7 @@ export function mapR2StationToStation(
   }
 
   let rainfallData: Station['rainfall'] = undefined;
-  if (!isWL) {
+  if (!isWL && !isMissing && c) {
     const r1 = c.rainfall1h ?? 0;
     const r3 = c.rainfall3h ?? 0;
     const r6 = c.rainfall6h ?? 0;
@@ -140,11 +148,12 @@ export function mapR2StationToStation(
       amphoe: { th: '', en: '' },
       province: { th: '', en: '' },
     },
-    status: c.status || 'normal',
-    freshness: c.freshness || 'fresh',
-    alertReason: c.alertReason,
-    isUpstreamAlert: c.isUpstreamAlert,
-    lastUpdated: formatThaiTime(c.lastUpdated),
+    status: isMissing ? 'missing' : (c?.status || 'normal'),
+    freshness: isMissing ? 'missing' : (c?.freshness || 'fresh'),
+    hasRecentData: !isMissing,
+    alertReason: c?.alertReason,
+    isUpstreamAlert: c?.isUpstreamAlert,
+    lastUpdated: c?.lastUpdated ? formatThaiTime(c.lastUpdated) : 'ไม่มีข้อมูลล่าสุด',
     waterLevel: waterLevelData,
     rainfall: rainfallData,
     riverName: riverNameTh ? { th: riverNameTh, en: riverNameEn || riverNameTh } : undefined,

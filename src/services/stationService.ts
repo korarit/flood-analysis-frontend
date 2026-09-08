@@ -226,19 +226,25 @@ export function isStationMissingData(station: Station): boolean {
   if (station.freshness === 'missing' || station.status === 'missing') {
     return true;
   }
+  if (station.hasRecentData === false) {
+    return true;
+  }
   if (station.stationType === 'water_level') {
-    if (!station.waterLevel) return true;
-    // If water level station has all zeros with non-fresh freshness
+    if (!station.waterLevel || station.waterLevel.waterLevelMsl == null || isNaN(station.waterLevel.waterLevelMsl)) {
+      return true;
+    }
+    // If water level station has all zeros (no active gauge readings)
     if (
       station.waterLevel.waterLevelMsl === 0 &&
       station.waterLevel.waterLevelBed === 0 &&
-      station.waterLevel.discharge === 0 &&
-      station.freshness !== 'fresh'
+      station.waterLevel.discharge === 0
     ) {
       return true;
     }
   } else if (station.stationType === 'rainfall') {
-    if (!station.rainfall) return true;
+    if (!station.rainfall || station.rainfall.rain24h == null || isNaN(station.rainfall.rain24h)) {
+      return true;
+    }
   }
   return false;
 }

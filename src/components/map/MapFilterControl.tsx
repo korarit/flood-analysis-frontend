@@ -103,6 +103,16 @@ export const MapFilterControl: React.FC<MapFilterControlProps> = ({
             <span className="w-2 h-2 rounded-full bg-rose-500"></span>
             <span>{isThai ? 'วิกฤต (>100%)' : 'Critical'}</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={statusFilters.missing}
+              onChange={() => toggleStatus('missing')}
+              className="rounded text-slate-500"
+            />
+            <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+            <span>{isThai ? 'ไม่มีข้อมูล (Missing)' : 'No Data (Missing)'}</span>
+          </label>
         </div>
       </div>
 

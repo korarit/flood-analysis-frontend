@@ -4,6 +4,7 @@ import { Station } from '../../types/station';
 import { SituationStatus } from '../../types/basin';
 import { useLanguage } from '../../hooks/useLanguage';
 import { r2Client } from '../../services/r2Client';
+import { isStationMissingData } from '../../services/stationService';
 
 interface LeafletWaterMapProps {
   stations: Station[];
@@ -491,8 +492,9 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
     markersLayer.clearLayers();
 
     stations.forEach((station) => {
+      const isMissing = isStationMissingData(station);
       const isWater = station.stationType === 'water_level';
-      const status = station.status;
+      const status = isMissing ? 'missing' : station.status;
       const isSelected = selectedStationId === station.id;
 
       // Color mapping for status halo
@@ -504,13 +506,24 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
         missing: '#64748B',
       };
 
-      const markerColor = colorHex[status] || '#06B6D4';
+      const markerColor = isMissing ? '#64748B' : (colorHex[status] || '#06B6D4');
       const iconSymbol = isWater ? '🌊' : '🌧️';
 
-      // Custom HTML Marker with glowing pulse and icon
+      // Custom HTML Marker: If missing data, display static gray icon without ping/pulse effect
       const customIcon = L.divIcon({
-        className: 'custom-water-marker',
-        html: `
+        className: isMissing ? 'custom-water-marker custom-marker-missing' : 'custom-water-marker',
+        html: isMissing
+          ? `
+          <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; cursor: pointer;">
+            <div style="position: relative; width: 30px; height: 30px; border-radius: 9999px; background-color: #1E293B; border: 2px solid #64748B; display: flex; align-items: center; justify-content: center; font-size: 13px; box-shadow: none; opacity: 0.8; transform: ${isSelected ? 'scale(1.15)' : 'scale(1)'}; transition: transform 0.2s;">
+              <span style="filter: grayscale(100%) opacity(0.6);">${iconSymbol}</span>
+            </div>
+            <div style="position: absolute; bottom: -18px; font-family: monospace; font-size: 9.5px; font-weight: 600; background: rgba(15, 23, 42, 0.9); color: #94A3B8; padding: 1px 4px; border-radius: 4px; border: 1px solid rgba(100, 116, 139, 0.3); white-space: nowrap;">
+              ${station.code}
+            </div>
+          </div>
+        `
+          : `
           <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; cursor: pointer;">
             <div style="position: absolute; inset: 0; border-radius: 9999px; background-color: ${markerColor}; opacity: ${isSelected ? 0.6 : 0.3}; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
             <div style="position: relative; width: 32px; height: 32px; border-radius: 9999px; background-color: #070B12; border: 2.5px solid ${markerColor}; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 0 15px ${markerColor}80; transform: ${isSelected ? 'scale(1.2)' : 'scale(1)'}; transition: transform 0.2s;">
@@ -525,7 +538,10 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
         iconAnchor: [18, 18],
       });
 
-      const marker = L.marker([station.lat, station.long], { icon: customIcon });
+      const marker = L.marker([station.lat, station.long], {
+        icon: customIcon,
+        zIndexOffset: isSelected ? 1000 : (isMissing ? -300 : 0),
+      });
 
       marker.on('click', () => {
         onSelectStation(station);
@@ -533,6 +549,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
 
       markersLayer.addLayer(marker);
     });
+
   }, [stations, selectedStationId, onSelectStation]);
 
   // Render User Location & Radar Range Rings if available

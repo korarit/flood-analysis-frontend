@@ -10,6 +10,7 @@ import { MapFilterControl } from '../../components/map/MapFilterControl';
 import { MapStationModal } from '../../components/map/MapStationModal';
 import { MapLegend } from '../../components/map/MapLegend';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { isStationMissingData } from '../../services/stationService';
 import {
   Search,
   Layers,
@@ -51,7 +52,8 @@ export function BasinMapPage() {
   const visibleStations = stations.filter((s) => {
     if (s.stationType === 'water_level' && !showWaterLevel) return false;
     if (s.stationType === 'rainfall' && !showRainfall) return false;
-    if (!statusFilters[s.status]) return false;
+    const effectiveStatus = isStationMissingData(s) ? 'missing' : s.status;
+    if (!statusFilters[effectiveStatus]) return false;
     if (sidebarSearch.trim()) {
       const q = sidebarSearch.toLowerCase().trim();
       const matchName = s.name.th.toLowerCase().includes(q) || s.name.en.toLowerCase().includes(q);
@@ -94,6 +96,7 @@ export function BasinMapPage() {
         {/* Sidebar Stations List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 divide-y divide-slate-100 dark:divide-slate-800/40">
           {visibleStations.map((station) => {
+            const isMissing = isStationMissingData(station);
             const isWater = station.stationType === 'water_level';
             const isSelected = selectedStation?.id === station.id;
 
@@ -104,6 +107,8 @@ export function BasinMapPage() {
                 className={`p-3 rounded-2xl transition-all cursor-pointer border ${
                   isSelected
                     ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950/40 shadow-xs'
+                    : isMissing
+                    ? 'border-transparent hover:border-slate-300 dark:hover:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30 opacity-75 hover:opacity-100'
                     : 'border-transparent hover:border-slate-300 dark:hover:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/60'
                 }`}
               >
@@ -111,7 +116,9 @@ export function BasinMapPage() {
                   <div className="flex items-center gap-2">
                     <div
                       className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
-                        isWater
+                        isMissing
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700'
+                          : isWater
                           ? 'bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-800'
                           : 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-800'
                       }`}
@@ -122,7 +129,7 @@ export function BasinMapPage() {
                       {station.code}
                     </span>
                   </div>
-                  <StatusBadge status={station.status} size="sm" showIcon={false} />
+                  <StatusBadge status={isMissing ? 'missing' : station.status} size="sm" showIcon={false} />
                 </div>
 
                 <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
@@ -131,8 +138,10 @@ export function BasinMapPage() {
 
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-2 font-mono font-medium">
                   <span>{t(station.geocode.amphoe)}</span>
-                  <span className="text-cyan-700 dark:text-cyan-300 font-bold">
-                    {isWater
+                  <span className={isMissing ? 'text-slate-400 dark:text-slate-500 font-semibold text-[10.5px]' : 'text-cyan-700 dark:text-cyan-300 font-bold'}>
+                    {isMissing
+                      ? (isThai ? 'ไม่มีข้อมูล' : 'No data')
+                      : isWater
                       ? `${station.waterLevel?.waterLevelMsl} ม.รทก.`
                       : `${station.rainfall?.rain24h} มม.`}
                   </span>
@@ -141,6 +150,7 @@ export function BasinMapPage() {
             );
           })}
         </div>
+
       </div>
 
       {/* 2. INTERACTIVE MAP VIEWPORT */}

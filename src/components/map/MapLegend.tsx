@@ -45,6 +45,10 @@ export const MapLegend: React.FC = () => {
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
           <span>{isThai ? 'วิกฤต (ล้นตลิ่ง / ฝนหนักมาก)' : 'Critical (Overflow)'}</span>
         </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-slate-500 border border-slate-400" />
+          <span>{isThai ? 'ไม่มีข้อมูล (สีเทา / ไม่มีเอฟเฟกต์)' : 'No Data (Gray / No Effect)'}</span>
+        </div>
       </div>
 
       {/* Boundary & Mask Legend */}
