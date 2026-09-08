@@ -147,7 +147,16 @@ export function StationDetailPage() {
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <FreshnessBadge freshness={station.freshness} timestampText={station.lastUpdated.split(' ')[1]} />
+            <FreshnessBadge
+              freshness={station.freshness}
+              timestampText={
+                station.lastUpdated.includes('น.')
+                  ? station.lastUpdated
+                  : station.lastUpdated.includes(' ')
+                  ? station.lastUpdated.split(' ')[1]
+                  : station.lastUpdated
+              }
+            />
           </div>
         </div>
       </div>

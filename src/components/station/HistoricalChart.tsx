@@ -196,8 +196,8 @@ export const HistoricalChart: React.FC<HistoricalChartProps> = ({
               unit={isWater ? 'ม.' : 'mm'}
             />
 
-            {/* Right Y Axis: Discharge Q (m³/s) */}
-            {isWater && (
+            {/* Right Y Axis: Discharge Q (m³/s) for Water OR Cumulative Rain for Rainfall */}
+            {isWater ? (
               <YAxis
                 yAxisId="right"
                 orientation="right"
@@ -207,6 +207,18 @@ export const HistoricalChart: React.FC<HistoricalChartProps> = ({
                 domain={['auto', 'auto']}
                 unit="m³/s"
               />
+            ) : (
+              (chartMode === 'combined' || chartMode === 'line') && (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke={isDark ? '#818CF8' : '#4F46E5'}
+                  fontSize={11}
+                  tickLine={false}
+                  domain={[0, 'auto']}
+                  unit="mm"
+                />
+              )
             )}
 
             <Tooltip
@@ -248,12 +260,20 @@ export const HistoricalChart: React.FC<HistoricalChartProps> = ({
                       </>
                     )}
                     {!isWater && (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-blue-700 dark:text-blue-400 font-bold">{isThai ? 'ปริมาณฝนสะสม:' : 'Rainfall:'}</span>
-                        <span className="font-mono font-extrabold text-slate-900 dark:text-slate-100">
-                          {point?.rainfall} มม.
-                        </span>
-                      </div>
+                      <>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-sky-700 dark:text-sky-400 font-bold">{isThai ? 'ฝนรายชั่วโมง:' : 'Hourly Rain:'}</span>
+                          <span className="font-mono font-extrabold text-slate-900 dark:text-slate-100">
+                            {point?.rainfall ?? 0} มม.
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-indigo-700 dark:text-indigo-400 font-bold">{isThai ? 'ฝนสะสม:' : 'Cumulative Rain:'}</span>
+                          <span className="font-mono font-extrabold text-slate-900 dark:text-slate-100">
+                            {point?.rainfallCumulative ?? 0} มม.
+                          </span>
+                        </div>
+                      </>
                     )}
                   </div>
                 );
@@ -313,19 +333,20 @@ export const HistoricalChart: React.FC<HistoricalChartProps> = ({
               <Bar
                 yAxisId="left"
                 dataKey="rainfall"
-                name={isThai ? 'ปริมาณฝน (มม.)' : 'Rainfall (mm)'}
-                fill={isDark ? '#3B82F6' : '#60A5FA'}
+                name={isThai ? 'ฝนรายชั่วโมง (มม.)' : 'Hourly Rain (mm)'}
+                fill={isDark ? '#38BDF8' : '#0284C7'}
+                opacity={0.85}
                 radius={[4, 4, 0, 0]}
               />
             )}
 
-            {!isWater && chartMode === 'line' && (
+            {!isWater && (chartMode === 'line' || chartMode === 'combined') && (
               <Line
-                yAxisId="left"
+                yAxisId={chartMode === 'combined' ? 'right' : 'left'}
                 type="monotone"
-                dataKey="rainfall"
-                name={isThai ? 'ปริมาณฝน (มม.)' : 'Rainfall (mm)'}
-                stroke="#3B82F6"
+                dataKey="rainfallCumulative"
+                name={isThai ? 'ฝนสะสม (มม.)' : 'Cumulative Rain (mm)'}
+                stroke={isDark ? '#818CF8' : '#4F46E5'}
                 strokeWidth={2.5}
                 dot={false}
                 connectNulls={false}

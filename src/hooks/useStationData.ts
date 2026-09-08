@@ -6,18 +6,18 @@ import {
   fetchStationDetailAndRelations,
   getStationHistoricalTelemetry,
 } from '../services/stationService';
+import { toBangkokDateString } from '../utils/date';
 
 export function useStationData(basinId: string, stationId: string) {
   const [station, setStation] = useState<Station | undefined>(() => getStationById(basinId, stationId));
   const [timeRange, setTimeRange] = useState<'1d' | '3d' | '7d' | 'custom'>('1d');
   const [chartMode, setChartMode] = useState<'bar' | 'line' | 'combined'>('combined');
 
-  // Date inputs default to current date
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Date inputs default to current date in Bangkok time
+  const todayStr = useMemo(() => toBangkokDateString(new Date()), []);
   const [startDate, setStartDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
+    const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return toBangkokDateString(d);
   });
   const [endDate, setEndDate] = useState<string>(todayStr);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -57,8 +57,8 @@ export function useStationData(basinId: string, stationId: string) {
     if (range === '7d') daysBack = 7;
 
     const start = new Date(end.getTime() - daysBack * 24 * 60 * 60 * 1000);
-    const newStartStr = start.toISOString().split('T')[0];
-    const newEndStr = end.toISOString().split('T')[0];
+    const newStartStr = toBangkokDateString(start);
+    const newEndStr = toBangkokDateString(end);
 
     setStartDate(newStartStr);
     setEndDate(newEndStr);
