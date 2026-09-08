@@ -87,4 +87,19 @@ export interface Station {
   // River chain index (optional for river view)
   riverOrder?: number;
   riverName?: LocalizedString;
+
+  // Severity calculation and data recency indicators
+  severityScore?: number;           // Continuous composite severity score
+  normalizedSeverityScore?: number; // 0-100 human readable severity score
+  hasRecentData?: boolean;          // False if freshness is missing or no recent telemetry
+}
+
+export interface SeverityScoreBreakdown {
+  baseTierScore: number;
+  telemetryScore: number;
+  trendScore: number;
+  surgeAlertScore: number;
+  freshnessPenalty: number;
+  totalScore: number;
+  normalizedScore: number;
 }

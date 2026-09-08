@@ -115,7 +115,7 @@ export const StationFilterBar: React.FC<StationFilterBarProps> = ({
               onChange={(e) => onSortByChange(e.target.value as any)}
               className="appearance-none bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700/80 rounded-xl px-3 py-1.5 pr-8 text-xs font-bold text-slate-800 dark:text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer shadow-xs"
             >
-              <option value="status">{isThai ? 'เรียงตาม: ความรุนแรง' : 'Sort: Severity'}</option>
+              <option value="status">{isThai ? 'เรียงตาม: ความรุนแรง (Severity Score)' : 'Sort: Severity Score'}</option>
               <option value="water_level">{isThai ? 'เรียงตาม: ระดับน้ำสูง' : 'Sort: High Water'}</option>
               <option value="rainfall">{isThai ? 'เรียงตาม: ฝนตกหนัก' : 'Sort: Rain Volume'}</option>
               <option value="name">{isThai ? 'เรียงตาม: ชื่อสถานี' : 'Sort: Name'}</option>

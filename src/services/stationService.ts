@@ -1,4 +1,4 @@
-import { Station, StationRelation, StationType } from '../types/station';
+import { Station, StationRelation, StationType, SeverityScoreBreakdown } from '../types/station';
 import { SituationStatus } from '../types/basin';
 import { HistoricalTelemetrySeries } from '../types/telemetry';
 import { fetchStationsForBasin, getStationsForBasin, mapR2StationToStation } from './basinService';
@@ -216,7 +216,153 @@ export async function fetchStationDetailAndRelations(
 }
 
 /**
- * Filter stations (supports passing live stationsList or falls back to basinId lookup)
+ * Check if a station lacks recent telemetry data ("ไม่มีข้อมูลล่าสุด")
+ * In ThaiWater / R2 snapshots:
+ * - freshness === 'missing' means telemetry is older than 3.5h or offline.
+ * - status === 'missing' means observation gap.
+ * - Lack of actual telemetry readings.
+ */
+export function isStationMissingData(station: Station): boolean {
+  if (station.freshness === 'missing' || station.status === 'missing') {
+    return true;
+  }
+  if (station.stationType === 'water_level') {
+    if (!station.waterLevel) return true;
+    // If water level station has all zeros with non-fresh freshness
+    if (
+      station.waterLevel.waterLevelMsl === 0 &&
+      station.waterLevel.waterLevelBed === 0 &&
+      station.waterLevel.discharge === 0 &&
+      station.freshness !== 'fresh'
+    ) {
+      return true;
+    }
+  } else if (station.stationType === 'rainfall') {
+    if (!station.rainfall) return true;
+  }
+  return false;
+}
+
+/**
+ * Hydrological Severity Scoring Algorithm
+ * Combines emergency situation status tiers with fine-grained real-time metrics:
+ * - Water Level: Bank capacity percent, river trend (rising/steady/falling), delta per hour, upstream alerts
+ * - Rainfall: 24h accumulation, 1h flash flood downpour, 3h accumulation, intensity tier, upstream alerts
+ *
+ * Missing data stations receive -1 score and are placed at the bottom.
+ */
+export function calculateStationSeverityScore(station: Station): {
+  score: number;
+  normalizedScore: number;
+  details: SeverityScoreBreakdown;
+} {
+  const isMissing = isStationMissingData(station);
+  if (isMissing) {
+    return {
+      score: -1,
+      normalizedScore: 0,
+      details: {
+        baseTierScore: 0,
+        telemetryScore: 0,
+        trendScore: 0,
+        surgeAlertScore: 0,
+        freshnessPenalty: 0,
+        totalScore: 0,
+        normalizedScore: 0,
+      },
+    };
+  }
+
+  // 1. Base Status Tier Score (Macro emergency anchor)
+  let baseTierScore = 100; // normal
+  if (station.status === 'critical') baseTierScore = 1000;
+  else if (station.status === 'warning') baseTierScore = 700;
+  else if (station.status === 'watch') baseTierScore = 400;
+
+  // 2. Telemetry and Trend Points (0 - 300 pts)
+  let telemetryScore = 0;
+  let trendScore = 0;
+
+  if (station.stationType === 'water_level' && station.waterLevel) {
+    const wl = station.waterLevel;
+    // Bank capacity utilization (up to 150 pts):
+    // >= 100% capacity represents river overflowing its banks
+    if (wl.bankCapacityPercent >= 100) {
+      telemetryScore += 100 + Math.min((wl.bankCapacityPercent - 100) * 2, 50);
+    } else {
+      telemetryScore += Math.max(0, Math.min(wl.bankCapacityPercent, 100));
+    }
+
+    // Trend direction
+    if (wl.trend === 'rising') trendScore += 40;
+    else if (wl.trend === 'steady') trendScore += 10;
+
+    // Rate of water rise (m/hr)
+    if (wl.deltaPerHour > 0) {
+      trendScore += Math.min(wl.deltaPerHour * 100, 40);
+    }
+
+    // Discharge capacity percentage (0 - 25 pts)
+    if (wl.dischargePercent) {
+      telemetryScore += Math.min(wl.dischargePercent * 0.25, 25);
+    }
+  } else if (station.stationType === 'rainfall' && station.rainfall) {
+    const rf = station.rainfall;
+    // 24h rainfall accumulation (up to 150 pts)
+    // 35mm = heavy, 90mm = very heavy in Thailand
+    if (rf.rain24h >= 90) {
+      telemetryScore += 90 + Math.min((rf.rain24h - 90) * 0.6, 60);
+    } else {
+      telemetryScore += Math.max(0, rf.rain24h);
+    }
+
+    // 1h flash flood burst intensity (up to 50 pts)
+    if (rf.rain1h > 0) {
+      telemetryScore += Math.min(rf.rain1h * 2.0, 50);
+    }
+
+    // 3h accumulation (up to 30 pts)
+    if (rf.rain3h > 0) {
+      telemetryScore += Math.min(rf.rain3h * 0.5, 30);
+    }
+
+    // Rain intensity category
+    if (rf.intensity === 'very_heavy') trendScore += 30;
+    else if (rf.intensity === 'heavy') trendScore += 20;
+    else if (rf.intensity === 'moderate') trendScore += 10;
+  }
+
+  // 3. Upstream Surge Alert (+40 pts)
+  const surgeAlertScore = station.isUpstreamAlert ? 40 : 0;
+
+  // 4. Freshness penalty (delayed by 1-3.5h: -10 pts)
+  const freshnessPenalty = station.freshness === 'delayed' ? -10 : 0;
+
+  const totalScore = Math.max(0, baseTierScore + telemetryScore + trendScore + surgeAlertScore + freshnessPenalty);
+
+  // Normalized 0 - 100 index for display
+  // Max expected totalScore ~ 1250 -> 100
+  const normalizedScore = Math.min(100, Math.max(1, Number(((totalScore / 1250) * 100).toFixed(1))));
+
+  return {
+    score: totalScore,
+    normalizedScore,
+    details: {
+      baseTierScore,
+      telemetryScore,
+      trendScore,
+      surgeAlertScore,
+      freshnessPenalty,
+      totalScore,
+      normalizedScore,
+    },
+  };
+}
+
+/**
+ * Filter and sort stations:
+ * - Computes and attaches continuous Severity Score and data freshness indicator
+ * - In severity sorting: sorts active stations by score descending, and ALWAYS pushes stations without recent data to the end
  */
 export function filterStations(
   basinId: string,
@@ -224,6 +370,18 @@ export function filterStations(
   stationsList?: Station[]
 ): Station[] {
   let stations = stationsList || getStationsForBasin(basinId);
+
+  // Attach severityScore and hasRecentData to all stations
+  stations = stations.map((s) => {
+    const isMissing = isStationMissingData(s);
+    const scoreInfo = calculateStationSeverityScore(s);
+    return {
+      ...s,
+      hasRecentData: !isMissing,
+      severityScore: scoreInfo.score,
+      normalizedSeverityScore: scoreInfo.normalizedScore,
+    };
+  });
 
   // 1. Search Query Filter (name TH/EN, code, tumbon, amphoe, province, agency)
   if (params.searchQuery && params.searchQuery.trim() !== '') {
@@ -262,6 +420,18 @@ export function filterStations(
   // 5. Sorting
   const sortBy = params.sortBy || 'status';
   stations = [...stations].sort((a, b) => {
+    const aMissing = !a.hasRecentData;
+    const bMissing = !b.hasRecentData;
+
+    // RULE: Stations without recent data ("ไม่มีข้อมูลล่าสุด") always go to the very end!
+    if (aMissing && !bMissing) return 1;
+    if (!aMissing && bMissing) return -1;
+    if (aMissing && bMissing) {
+      // Deterministic tie-break for stations with missing data
+      return a.name.th.localeCompare(b.name.th, 'th');
+    }
+
+    // Both have recent data: sort by selected criteria
     if (sortBy === 'name') {
       return a.name.th.localeCompare(b.name.th, 'th');
     }
@@ -278,15 +448,9 @@ export function filterStations(
     if (sortBy === 'update_time') {
       return b.lastUpdated.localeCompare(a.lastUpdated);
     }
-    // Default sort by status severity (critical > warning > watch > normal > missing)
-    const severityScore: Record<SituationStatus, number> = {
-      critical: 4,
-      warning: 3,
-      watch: 2,
-      normal: 1,
-      missing: 0,
-    };
-    return severityScore[b.status] - severityScore[a.status];
+
+    // Default: Sort by severity score descending (Continuous severity algorithm)
+    return (b.severityScore || 0) - (a.severityScore || 0);
   });
 
   return stations;

@@ -19,6 +19,7 @@ export const StationCard: React.FC<StationCardProps> = ({
   className = '',
 }) => {
   const { t, isThai } = useLanguage();
+  const isMissing = station.hasRecentData === false || station.freshness === 'missing' || station.status === 'missing';
   const isWater = station.stationType === 'water_level';
   const wl = station.waterLevel;
   const rf = station.rainfall;
@@ -27,14 +28,20 @@ export const StationCard: React.FC<StationCardProps> = ({
     <Link
       to="/basin/$basinSlug/station/$stationId"
       params={{ basinSlug, stationId: station.id }}
-      className={`group relative overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800/90 bg-white/95 dark:bg-background-card/80 p-5 sm:p-6 backdrop-blur-xl shadow-md dark:shadow-lg transition-all hover:border-cyan-400 dark:hover:border-cyan-500/40 hover:bg-slate-50 dark:hover:bg-slate-900 hover:shadow-xl flex flex-col justify-between cursor-pointer ${className}`}
+      className={`group relative overflow-hidden rounded-3xl border ${
+        isMissing
+          ? 'border-slate-300/80 dark:border-slate-800/60 bg-white/70 dark:bg-background-card/50 opacity-80 hover:opacity-100'
+          : 'border-slate-200 dark:border-slate-800/90 bg-white/95 dark:bg-background-card/80'
+      } p-5 sm:p-6 backdrop-blur-xl shadow-md dark:shadow-lg transition-all hover:border-cyan-400 dark:hover:border-cyan-500/40 hover:bg-slate-50 dark:hover:bg-slate-900 hover:shadow-xl flex flex-col justify-between cursor-pointer ${className}`}
     >
-      {/* Top Bar: Type Icon, Code, Status Badge */}
+      {/* Top Bar: Type Icon, Code, Severity Score & Status Badge */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
           <div
             className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-              isWater
+              isMissing
+                ? 'bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'
+                : isWater
                 ? 'bg-cyan-100 dark:bg-cyan-950/60 border border-cyan-300 dark:border-cyan-500/30 text-cyan-700 dark:text-cyan-400'
                 : 'bg-blue-100 dark:bg-blue-950/60 border border-blue-300 dark:border-blue-500/30 text-blue-700 dark:text-blue-400'
             }`}
@@ -56,7 +63,29 @@ export const StationCard: React.FC<StationCardProps> = ({
           </div>
         </div>
 
-        <StatusBadge status={station.status} size="sm" showIcon={false} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {!isMissing && station.normalizedSeverityScore != null && (
+            <span
+              title={
+                isThai
+                  ? `คะแนนความรุนแรง: ${station.normalizedSeverityScore}/100`
+                  : `Severity Score: ${station.normalizedSeverityScore}/100`
+              }
+              className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                station.status === 'critical'
+                  ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-800/60'
+                  : station.status === 'warning'
+                  ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800/60'
+                  : station.status === 'watch'
+                  ? 'bg-yellow-100 dark:bg-yellow-950/70 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-800/60'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+              }`}
+            >
+              {isThai ? 'คะแนน ' : 'Score '}{station.normalizedSeverityScore}
+            </span>
+          )}
+          <StatusBadge status={station.status} size="sm" showIcon={false} />
+        </div>
       </div>
 
       {/* Location & Agency */}
@@ -75,7 +104,21 @@ export const StationCard: React.FC<StationCardProps> = ({
 
       {/* Main Telemetry Block */}
       <div className="mt-4 pt-3.5 border-t border-slate-200 dark:border-slate-800/80">
-        {isWater && wl ? (
+        {isMissing ? (
+          <div className="py-3 px-3 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/60 text-center space-y-1.5">
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {isThai ? 'ไม่มีรายงานข้อมูลล่าสุด' : 'No Recent Telemetry Data'}
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <FreshnessBadge freshness={station.freshness} />
+              {station.lastUpdated && station.lastUpdated !== 'ล่าสุด' && (
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
+                  ({station.lastUpdated})
+                </span>
+              )}
+            </div>
+          </div>
+        ) : isWater && wl ? (
           <div className="space-y-2.5">
             <div className="flex items-baseline justify-between">
               <div>
