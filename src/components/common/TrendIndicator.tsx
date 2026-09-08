@@ -28,24 +28,24 @@ export const TrendIndicator: React.FC<TrendIndicatorProps> = ({
       labelTh: 'เพิ่มขึ้น',
       labelEn: 'Rising',
       icon: TrendingUp,
-      color: 'text-amber-400',
-      bg: 'bg-amber-950/40 border-amber-500/30',
+      color: 'text-amber-800 dark:text-amber-300',
+      bg: 'bg-amber-100 dark:bg-amber-950/50 border-amber-300 dark:border-amber-500/40',
       symbol: '↑',
     },
     steady: {
       labelTh: 'ทรงตัว',
       labelEn: 'Steady',
       icon: MoveRight,
-      color: 'text-cyan-400',
-      bg: 'bg-cyan-950/40 border-cyan-500/30',
+      color: 'text-cyan-900 dark:text-cyan-300',
+      bg: 'bg-cyan-100 dark:bg-cyan-950/50 border-cyan-300 dark:border-cyan-500/40',
       symbol: '→',
     },
     falling: {
       labelTh: 'ลดลง',
       labelEn: 'Falling',
       icon: TrendingDown,
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-950/40 border-emerald-500/30',
+      color: 'text-emerald-800 dark:text-emerald-300',
+      bg: 'bg-emerald-100 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-500/40',
       symbol: '↓',
     },
   }[trend];
@@ -56,7 +56,7 @@ export const TrendIndicator: React.FC<TrendIndicatorProps> = ({
   const sizeClasses = {
     sm: 'text-xs px-2 py-0.5 gap-1',
     md: 'text-sm px-2.5 py-1 gap-1.5',
-    lg: 'text-base px-3 py-1.5 gap-2 font-medium',
+    lg: 'text-base px-3 py-1.5 gap-2 font-semibold',
   }[size];
 
   const iconSizes = {
@@ -67,13 +67,13 @@ export const TrendIndicator: React.FC<TrendIndicatorProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center rounded-lg border font-medium ${config.bg} ${config.color} ${sizeClasses} ${className}`}
+      className={`inline-flex items-center rounded-lg border font-semibold ${config.bg} ${config.color} ${sizeClasses} ${className}`}
       title={`${label} ${deltaPerHour !== undefined ? `(${deltaPerHour > 0 ? '+' : ''}${deltaPerHour} ${defaultUnit})` : ''}`}
     >
       <Icon className={`${iconSizes} shrink-0`} />
       <span>{label}</span>
       {showDelta && deltaPerHour !== undefined && (
-        <span className="font-mono text-xs opacity-90 ml-0.5">
+        <span className="font-mono text-xs ml-0.5">
           ({deltaPerHour > 0 ? `+${deltaPerHour}` : deltaPerHour} {defaultUnit})
         </span>
       )}
