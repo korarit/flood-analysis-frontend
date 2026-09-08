@@ -129,20 +129,30 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
             <span>{isThai ? 'ปริมาณการไหล (Q)' : 'Discharge (Q)'}</span>
             <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-700 dark:text-emerald-300">
-              {telemetry.discharge}
-            </span>
-            <span className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 font-sans">
-              {isThai ? 'ลบ.ม./วินาที' : 'm³/s'}
-            </span>
-          </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 pt-1 flex items-center justify-between font-medium">
-            <span>{isThai ? 'เทียบความจุระบายสูงสุด:' : 'Max River Flow:'}</span>
-            <span className="font-mono text-slate-800 dark:text-slate-200 font-bold">
-              {telemetry.dischargePercent}% ({telemetry.maxDischargeCapacity} m³/s)
-            </span>
-          </div>
+          {telemetry.discharge != null && telemetry.discharge > 0 ? (
+            <>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-700 dark:text-emerald-300">
+                  {telemetry.discharge}
+                </span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 font-sans">
+                  {isThai ? 'ลบ.ม./วินาที' : 'm³/s'}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 pt-1 flex items-center justify-between font-medium">
+                <span>{isThai ? 'เทียบความจุระบายสูงสุด:' : 'Max River Flow:'}</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200 font-bold">
+                  {telemetry.dischargePercent}% ({telemetry.maxDischargeCapacity} m³/s)
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="py-2.5">
+              <span className="text-sm font-semibold text-slate-400 dark:text-slate-500">
+                {isThai ? 'ไม่มีข้อมูล' : 'No data'}
+              </span>
+            </div>
+          )}
         </div>
 
       </div>

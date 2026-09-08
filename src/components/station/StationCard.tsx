@@ -129,9 +129,15 @@ export const StationCard: React.FC<StationCardProps> = ({
               </div>
               <div className="text-right">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block">{isThai ? 'อัตราไหล (Q)' : 'Discharge (Q)'}</span>
-                <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-200">
-                  {wl.discharge} <span className="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal">m³/s</span>
-                </span>
+                {wl.discharge != null && wl.discharge > 0 ? (
+                  <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-200">
+                    {wl.discharge} <span className="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal">m³/s</span>
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                    {isThai ? 'ไม่มีข้อมูล' : 'No data'}
+                  </span>
+                )}
               </div>
             </div>
 

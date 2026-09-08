@@ -108,7 +108,11 @@ export const RiverChainView: React.FC<RiverChainViewProps> = ({ stations, basinS
                     </div>
                     <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono flex justify-between">
                       <span>{isThai ? 'อัตราไหล' : 'Q'}:</span>
-                      <span className="text-slate-800 dark:text-slate-200 font-bold">{wl?.discharge} m³/s</span>
+                      {wl?.discharge != null && wl.discharge > 0 ? (
+                        <span className="text-slate-800 dark:text-slate-200 font-bold">{wl.discharge} m³/s</span>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500 font-sans font-medium">{isThai ? 'ไม่มีข้อมูล' : 'No data'}</span>
+                      )}
                     </div>
                   </div>
 

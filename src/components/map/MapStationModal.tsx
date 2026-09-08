@@ -103,9 +103,15 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
                 </div>
                 <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">{isThai ? 'ปริมาณการไหล (Q)' : 'Discharge (Q)'}</span>
-                  <div className="text-2xl font-extrabold font-mono text-emerald-700 dark:text-emerald-300">
-                    {wl.discharge} <span className="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal">m³/s</span>
-                  </div>
+                  {wl.discharge != null && wl.discharge > 0 ? (
+                    <div className="text-2xl font-extrabold font-mono text-emerald-700 dark:text-emerald-300">
+                      {wl.discharge} <span className="text-xs font-sans text-slate-500 dark:text-slate-400 font-normal">m³/s</span>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-medium text-slate-400 dark:text-slate-500 pt-1.5">
+                      {isThai ? 'ไม่มีข้อมูล' : 'No data'}
+                    </div>
+                  )}
                 </div>
               </div>
 
