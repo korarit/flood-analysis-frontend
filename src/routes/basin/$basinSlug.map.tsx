@@ -35,7 +35,7 @@ export function BasinMapPage() {
     critical: true,
     missing: true,
   });
-  const [baseMapType, setBaseMapType] = useState<'dark' | 'streets' | 'satellite'>('dark');
+  const [baseMapType, setBaseMapType] = useState<'streets' | 'dark' | 'satellite'>('streets');
   
   // Search & Selection
   const [sidebarSearch, setSidebarSearch] = useState('');

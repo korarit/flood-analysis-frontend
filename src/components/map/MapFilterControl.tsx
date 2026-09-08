@@ -11,8 +11,8 @@ interface MapFilterControlProps {
   setShowRainfall: (v: boolean) => void;
   statusFilters: Record<SituationStatus, boolean>;
   setStatusFilters: React.Dispatch<React.SetStateAction<Record<SituationStatus, boolean>>>;
-  baseMapType: 'dark' | 'streets' | 'satellite';
-  setBaseMapType: (t: 'dark' | 'streets' | 'satellite') => void;
+  baseMapType: 'streets' | 'dark' | 'satellite';
+  setBaseMapType: (t: 'streets' | 'dark' | 'satellite') => void;
 }
 
 export const MapFilterControl: React.FC<MapFilterControlProps> = ({
@@ -42,24 +42,24 @@ export const MapFilterControl: React.FC<MapFilterControlProps> = ({
         </span>
         <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
           <button
+            onClick={() => setBaseMapType('streets')}
+            className={`py-1 rounded-lg font-bold transition-all cursor-pointer truncate text-[11px] ${
+              baseMapType === 'streets' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            OSM
+          </button>
+          <button
             onClick={() => setBaseMapType('dark')}
-            className={`py-1 rounded-lg font-bold transition-all cursor-pointer ${
+            className={`py-1 rounded-lg font-bold transition-all cursor-pointer truncate text-[11px] ${
               baseMapType === 'dark' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             {isThai ? 'มืด (Dark)' : 'Dark'}
           </button>
           <button
-            onClick={() => setBaseMapType('streets')}
-            className={`py-1 rounded-lg font-bold transition-all cursor-pointer ${
-              baseMapType === 'streets' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            {isThai ? 'ถนน' : 'Street'}
-          </button>
-          <button
             onClick={() => setBaseMapType('satellite')}
-            className={`py-1 rounded-lg font-bold transition-all cursor-pointer ${
+            className={`py-1 rounded-lg font-bold transition-all cursor-pointer truncate text-[11px] ${
               baseMapType === 'satellite' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >

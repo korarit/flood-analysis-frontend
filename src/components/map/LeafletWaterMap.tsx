@@ -11,10 +11,69 @@ interface LeafletWaterMapProps {
   zoom: number;
   selectedStationId?: string | null;
   onSelectStation: (st: Station) => void;
-  baseMapType: 'dark' | 'streets' | 'satellite';
+  baseMapType?: 'streets' | 'dark' | 'satellite';
   userLocation?: { lat: number; long: number } | null;
   radiusKm?: number;
   basinSlug?: string;
+}
+
+/**
+ * World-spanning coordinates in Web Mercator [lat, lng] format.
+ * Covers -85.051128 to 85.051128 lat, and -360 to 360 lng to ensure the black mask
+ * surrounds the basin even when panning or zooming out.
+ */
+const WORLD_MASK_COORDS: [number, number][] = [
+  [-85.051128, -360],
+  [-85.051128, 360],
+  [85.051128, 360],
+  [85.051128, -360],
+  [-85.051128, -360],
+];
+
+/**
+ * Extracts outer boundary rings from GeoJSON (FeatureCollection, Feature, or Geometry)
+ * converting [lng, lat] GeoJSON coordinates to Leaflet [lat, lng] format.
+ */
+function extractPolygonRings(geoJsonData: any): [number, number][][] {
+  const rings: [number, number][][] = [];
+
+  const processGeometry = (geom: any) => {
+    if (!geom) return;
+    if (geom.type === 'Polygon' && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
+      const extRing = geom.coordinates[0];
+      if (Array.isArray(extRing)) {
+        const latLngs = extRing
+          .filter((pt: any) => Array.isArray(pt) && pt.length >= 2)
+          .map((pt: [number, number]) => [pt[1], pt[0]] as [number, number]);
+        if (latLngs.length > 2) {
+          rings.push(latLngs);
+        }
+      }
+    } else if (geom.type === 'MultiPolygon' && Array.isArray(geom.coordinates)) {
+      for (const poly of geom.coordinates) {
+        if (Array.isArray(poly) && poly.length > 0 && Array.isArray(poly[0])) {
+          const latLngs = poly[0]
+            .filter((pt: any) => Array.isArray(pt) && pt.length >= 2)
+            .map((pt: [number, number]) => [pt[1], pt[0]] as [number, number]);
+          if (latLngs.length > 2) {
+            rings.push(latLngs);
+          }
+        }
+      }
+    } else if (geom.type === 'GeometryCollection' && Array.isArray(geom.geometries)) {
+      geom.geometries.forEach(processGeometry);
+    }
+  };
+
+  if (geoJsonData.type === 'FeatureCollection' && Array.isArray(geoJsonData.features)) {
+    geoJsonData.features.forEach((f: any) => processGeometry(f.geometry));
+  } else if (geoJsonData.type === 'Feature') {
+    processGeometry(geoJsonData.geometry);
+  } else {
+    processGeometry(geoJsonData);
+  }
+
+  return rings;
 }
 
 export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
@@ -35,6 +94,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const userLayerRef = useRef<L.LayerGroup | null>(null);
   const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
+  const maskLayerRef = useRef<L.Polygon | null>(null);
 
   // Initialize Map
   useEffect(() => {
@@ -49,6 +109,13 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+      // Custom pane for the 90% black world mask (above tiles at 200, below overlays at 400 & markers at 600)
+      if (!map.getPane('maskPane')) {
+        const maskPane = map.createPane('maskPane');
+        maskPane.style.zIndex = '350';
+        maskPane.style.pointerEvents = 'none';
+      }
+
       mapInstanceRef.current = map;
       markersLayerRef.current = L.layerGroup().addTo(map);
       userLayerRef.current = L.layerGroup().addTo(map);
@@ -62,7 +129,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
     };
   }, []);
 
-  // Update Base Map Tile Layer
+  // Update Base Map Tile Layer (Default: OpenStreetMap)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -71,21 +138,25 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
       map.removeLayer(tileLayerRef.current);
     }
 
-    let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    let attribution = '&copy; OpenStreetMap &copy; CARTO';
+    // Default to standard OpenStreetMap
+    let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    let subdomains = 'abc';
 
-    if (baseMapType === 'streets') {
-      tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-      attribution = '&copy; OpenStreetMap contributors';
+    if (baseMapType === 'dark') {
+      tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      attribution = '&copy; OpenStreetMap &copy; CARTO';
+      subdomains = 'abcd';
     } else if (baseMapType === 'satellite') {
       tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
       attribution = 'Tiles &copy; Esri';
+      subdomains = 'abcd';
     }
 
     const tileLayer = L.tileLayer(tileUrl, {
       attribution,
       maxZoom: 19,
-      subdomains: 'abcd',
+      subdomains,
     }).addTo(map);
 
     tileLayerRef.current = tileLayer;
@@ -94,44 +165,79 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   // Center update when center prop changes
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (map) {
+    if (map && !geoJsonLayerRef.current) {
       map.setView(center, zoom, { animate: true });
     }
   }, [center, zoom]);
 
-  // Load Basin Boundary GeoJSON from Cloudflare R2
+  // Load Basin Boundary GeoJSON from Cloudflare R2 and apply 90% black mask outside
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !basinSlug) return;
 
     let isMounted = true;
+
+    // Clean up previous layers
+    if (maskLayerRef.current) {
+      map.removeLayer(maskLayerRef.current);
+      maskLayerRef.current = null;
+    }
+    if (geoJsonLayerRef.current) {
+      map.removeLayer(geoJsonLayerRef.current);
+      geoJsonLayerRef.current = null;
+    }
+
     r2Client.getBoundaryGeoJson(basinSlug).then((geoJsonData) => {
       if (!isMounted || !map || !geoJsonData) return;
 
-      if (geoJsonLayerRef.current) {
-        map.removeLayer(geoJsonLayerRef.current);
-        geoJsonLayerRef.current = null;
-      }
-
       try {
+        const rings = extractPolygonRings(geoJsonData);
+
+        // 1. Render black mask outside the basin with 90% opacity (0.9)
+        if (rings.length > 0) {
+          const maskPolygon = L.polygon([WORLD_MASK_COORDS, ...rings], {
+            stroke: false,
+            fillColor: '#000000',
+            fillOpacity: 0.9,
+            interactive: false,
+            fillRule: 'evenodd',
+            pane: 'maskPane',
+          }).addTo(map);
+
+          maskLayerRef.current = maskPolygon;
+        }
+
+        // 2. Render basin boundary contour
         const geoLayer = L.geoJSON(geoJsonData, {
           style: {
             color: '#06B6D4',
-            weight: 2,
-            dashArray: '4, 4',
-            fillColor: '#06B6D4',
-            fillOpacity: 0.05,
+            weight: 2.5,
+            opacity: 0.95,
+            fill: false,
+            interactive: false,
           },
         }).addTo(map);
 
         geoJsonLayerRef.current = geoLayer;
+
+        // Auto fit bounds to the basin boundary
+        if (geoLayer.getBounds().isValid()) {
+          map.fitBounds(geoLayer.getBounds(), {
+            padding: [24, 24],
+            maxZoom: 12,
+          });
+        }
       } catch (e) {
-        console.warn('Failed to parse boundary geojson:', e);
+        console.warn('Failed to parse or render boundary geojson:', e);
       }
     });
 
     return () => {
       isMounted = false;
+      if (maskLayerRef.current && map) {
+        map.removeLayer(maskLayerRef.current);
+        maskLayerRef.current = null;
+      }
       if (geoJsonLayerRef.current && map) {
         map.removeLayer(geoJsonLayerRef.current);
         geoJsonLayerRef.current = null;

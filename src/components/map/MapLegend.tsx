@@ -46,6 +46,18 @@ export const MapLegend: React.FC = () => {
           <span>{isThai ? 'วิกฤต (ล้นตลิ่ง / ฝนหนักมาก)' : 'Critical (Overflow)'}</span>
         </div>
       </div>
+
+      {/* Boundary & Mask Legend */}
+      <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800 font-medium">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-1.5 rounded-full bg-cyan-400 border border-cyan-300 shadow-xs" />
+          <span>{isThai ? 'ขอบเขตลุ่มน้ำ' : 'Basin Boundary'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-3 rounded bg-black/90 border border-slate-600" />
+          <span>{isThai ? 'พื้นที่นอกลุ่มน้ำ (เงาดำ 90%)' : 'Outside Basin (90% Mask)'}</span>
+        </div>
+      </div>
     </div>
   );
 };
