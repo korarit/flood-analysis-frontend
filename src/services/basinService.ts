@@ -10,15 +10,43 @@ let cachedBasins: Basin[] = [...BASINS_DATA];
 const cachedStationsByBasin = new Map<string, Station[]>();
 const cachedRiverChainByBasin = new Map<string, Station[]>();
 
-// Format Thai time display
-export function formatThaiTime(isoStr?: string): string {
+// Format Thai date and time display (Asia/Bangkok timezone)
+export function formatThaiTime(
+  isoStr?: string,
+  options?: { includeDate?: boolean; includeYear?: boolean }
+): string {
   if (!isoStr) return 'ล่าสุด';
+  if (isoStr === 'ล่าสุด' || isoStr === 'ไม่มีข้อมูลล่าสุด') return isoStr;
+
   try {
     const d = new Date(isoStr);
     if (isNaN(d.getTime())) return isoStr;
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes} น.`;
+
+    const includeDate = options?.includeDate ?? true;
+    if (includeDate) {
+      const isCurrentYear = d.getFullYear() === new Date().getFullYear();
+      const includeYear = options?.includeYear ?? !isCurrentYear;
+
+      const formatted = new Intl.DateTimeFormat('th-TH', {
+        timeZone: 'Asia/Bangkok',
+        day: 'numeric',
+        month: 'short',
+        ...(includeYear ? { year: '2-digit' as const } : {}),
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(d);
+
+      return `${formatted} น.`;
+    }
+
+    const timeOnly = new Intl.DateTimeFormat('th-TH', {
+      timeZone: 'Asia/Bangkok',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(d);
+    return `${timeOnly} น.`;
   } catch {
     return 'ล่าสุด';
   }
@@ -36,12 +64,15 @@ export function mapR2StationToStation(
   const c = item.current;
 
   // Determine if telemetry is missing from the R2 snapshot
+  const hasTelemetryValues = isWL
+    ? (c?.stage != null || c?.waterLevelMsl != null || c?.discharge != null)
+    : (c?.rainfall1h != null || c?.rainfall3h != null || c?.rainfall6h != null || c?.rainfall24h != null || c?.rainfallToday != null);
+
   const isMissing =
     !c ||
     c.status === 'missing' ||
     c.freshness === 'missing' ||
-    (isWL && c.stage == null && c.waterLevelMsl == null) ||
-    (!isWL && c.rainfall1h == null && c.rainfall3h == null && c.rainfall6h == null && c.rainfall24h == null && c.rainfallToday == null);
+    !hasTelemetryValues;
 
   const agencyName = item.agency?.th || 'กรมชลประทาน';
   const agencyEn = item.agency?.en || 'Royal Irrigation Department';
@@ -153,7 +184,7 @@ export function mapR2StationToStation(
     hasRecentData: !isMissing,
     alertReason: c?.alertReason,
     isUpstreamAlert: c?.isUpstreamAlert,
-    lastUpdated: c?.lastUpdated ? formatThaiTime(c.lastUpdated) : 'ไม่มีข้อมูลล่าสุด',
+    lastUpdated: (hasTelemetryValues && c?.lastUpdated) ? formatThaiTime(c.lastUpdated) : 'ไม่มีข้อมูลล่าสุด',
     waterLevel: waterLevelData,
     rainfall: rainfallData,
     riverName: riverNameTh ? { th: riverNameTh, en: riverNameEn || riverNameTh } : undefined,

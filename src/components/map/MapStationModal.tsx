@@ -108,7 +108,7 @@ export const MapStationModal: React.FC<MapStationModalProps> = ({
               </p>
               <div className="flex items-center justify-center gap-2 pt-1">
                 <FreshnessBadge freshness={station.freshness} />
-                {station.lastUpdated && station.lastUpdated !== 'ไม่มีข้อมูลล่าสุด' && (
+                {station.lastUpdated && station.lastUpdated !== 'ไม่มีข้อมูลล่าสุด' && station.lastUpdated !== 'ล่าสุด' && (
                   <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                     ({station.lastUpdated})
                   </span>

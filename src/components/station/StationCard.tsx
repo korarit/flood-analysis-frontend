@@ -111,7 +111,7 @@ export const StationCard: React.FC<StationCardProps> = ({
             </div>
             <div className="flex items-center justify-center gap-2">
               <FreshnessBadge freshness={station.freshness} />
-              {station.lastUpdated && station.lastUpdated !== 'ล่าสุด' && (
+              {station.lastUpdated && station.lastUpdated !== 'ล่าสุด' && station.lastUpdated !== 'ไม่มีข้อมูลล่าสุด' && (
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                   ({station.lastUpdated})
                 </span>
