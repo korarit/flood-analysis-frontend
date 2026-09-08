@@ -185,12 +185,23 @@ export interface R2StationRelationsDataset {
   }>;
 }
 
+export interface R2RiverChainEdge {
+  from: string;
+  to: string;
+  travelTimeHours: number | null;
+  travelTimeHoursMin: number | null;
+  travelTimeHoursMax: number | null;
+  distanceKm: number | null;
+  confidence: string | null;
+}
+
 export interface R2RiverChainDataset {
   schemaVersion: string;
   basin: string;
   river: string;
   generatedAt: string;
   stations: string[];
+  edges?: R2RiverChainEdge[];
 }
 
 export interface R2EventsFeedDataset {

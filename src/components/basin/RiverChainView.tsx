@@ -2,8 +2,9 @@ import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { Station } from '../../types/station';
 import { useLanguage } from '../../hooks/useLanguage';
-import { StatusBadge } from '../common/StatusBadge';
-import { Waves, ArrowDown, ExternalLink } from 'lucide-react';
+import { R2RiverChainEdge } from '../../services/r2Client';
+import { getRiverChainEdges } from '../../services/basinService';
+import { Waves, Clock, ChevronRight } from 'lucide-react';
 
 interface RiverChainViewProps {
   stations: Station[];
@@ -13,8 +14,40 @@ interface RiverChainViewProps {
 export const RiverChainView: React.FC<RiverChainViewProps> = ({ stations, basinSlug }) => {
   const { t, isThai } = useLanguage();
 
-  if (!stations || stations.length === 0) {
+  // Load cached edges (travel time between stations)
+  const edges = React.useMemo<R2RiverChainEdge[]>(() => getRiverChainEdges(basinSlug), [basinSlug]);
+
+  // Show only stations that have actual water level data from R2 snapshot (freshness not missing).
+  // Backend puts ALL relation-graph stations in chain.json; frontend applies the "has data" filter
+  // using mapR2StationToStation which reads current.freshness from R2 stations.json.
+  const visibleStations = React.useMemo(() => {
+    const withData = stations.filter(
+      (s) => s.stationType === 'water_level' && s.waterLevel !== undefined
+    );
+    return withData.slice(0, 15);
+  }, [stations]);
+
+  if (!visibleStations || visibleStations.length === 0) {
     return null;
+  }
+
+  // Build edge lookup: "fromId→toId" → edge
+  const edgeMap = React.useMemo(() => {
+    const map = new Map<string, R2RiverChainEdge>();
+    for (const e of edges) {
+      map.set(`${e.from}→${e.to}`, e);
+    }
+    return map;
+  }, [edges]);
+
+  // Format travel time nicely
+  function formatTravelTime(edge: R2RiverChainEdge | undefined): string | null {
+    if (!edge) return null;
+    const h = edge.travelTimeHours;
+    if (!h) return null;
+    if (h < 1) return `~${Math.round(h * 60)} นาที`;
+    if (h < 24) return `~${h.toFixed(1)} ชม.`;
+    return `~${(h / 24).toFixed(1)} วัน`;
   }
 
   return (
@@ -48,103 +81,125 @@ export const RiverChainView: React.FC<RiverChainViewProps> = ({ stations, basinS
 
       {/* Chain Stream Line */}
       <div className="relative pt-2 pb-4 overflow-x-auto">
-        <div className="min-w-[700px] flex items-center justify-between gap-3 relative">
-          
-          {/* Connecting Flow Pipe */}
-          <div className="absolute top-1/2 left-6 right-6 h-2 -translate-y-1/2 bg-gradient-to-r from-cyan-300 via-cyan-500 to-blue-500 dark:from-cyan-900 dark:via-cyan-600 dark:to-blue-900 rounded-full z-0 opacity-40" />
+        <div className="min-w-[700px] flex items-start justify-between gap-1 relative">
 
-          {stations.map((st, idx) => {
+          {visibleStations.map((st, idx) => {
             const wl = st.waterLevel;
             const fillPct = wl?.bankCapacityPercent || 0;
             const isUpstream = idx === 0;
-            const isDownstream = idx === stations.length - 1;
+            const isDownstream = idx === visibleStations.length - 1;
+            const nextSt = !isDownstream ? visibleStations[idx + 1] : null;
 
-            const ringColor =
-              fillPct >= 85
+            // Find edge between this station and next
+            const travelEdge = nextSt ? edgeMap.get(`${st.id}→${nextSt.id}`) : undefined;
+            const travelLabel = formatTravelTime(travelEdge);
+
+            const ringColor = !wl
+              ? 'border-slate-300 dark:border-slate-700 opacity-60'
+              : fillPct >= 85
                 ? 'border-rose-500 shadow-sm dark:shadow-glow-status-critical'
                 : fillPct >= 70
                 ? 'border-amber-500 shadow-sm dark:shadow-glow-status-watch'
                 : 'border-cyan-400 dark:border-cyan-500 shadow-sm dark:shadow-glow-cyan';
 
             return (
-              <div key={st.uniqueKey || `chain-${st.id}-${idx}`} className="relative z-10 flex flex-col items-center flex-1 group">
-                
-                {/* Stage Tag */}
-                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
-                  {isUpstream
-                    ? isThai
-                      ? 'ต้นน้ำ'
-                      : 'Upstream'
-                    : isDownstream
-                    ? isThai
-                      ? 'ปลายน้ำ'
-                      : 'Downstream'
-                    : isThai
-                    ? `ตอน ${idx + 1}`
-                    : `Node ${idx + 1}`}
-                </span>
+              <React.Fragment key={st.uniqueKey || `chain-${st.id}-${idx}`}>
+                {/* Station node */}
+                <div className="relative z-10 flex flex-col items-center flex-1 group min-w-[110px]">
 
-                {/* Node Box */}
-                <Link
-                  to="/basin/$basinSlug/station/$stationId"
-                  params={{ basinSlug, stationId: st.id }}
-                  className={`w-full max-w-[130px] rounded-2xl border bg-white dark:bg-slate-900/95 p-3 text-center transition-all hover:scale-105 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shadow-sm ${ringColor}`}
-                >
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <span className="font-mono text-xs font-bold text-cyan-700 dark:text-cyan-300">
-                      {st.code}
-                    </span>
-                    <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400" />
-                  </div>
+                  {/* Stage Tag */}
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
+                    {isUpstream
+                      ? isThai ? 'ต้นน้ำ' : 'Upstream'
+                      : isDownstream
+                      ? isThai ? 'ปลายน้ำ' : 'Downstream'
+                      : isThai ? `ตอน ${idx + 1}` : `Node ${idx + 1}`}
+                  </span>
 
-                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={t(st.name)}>
-                    {t(st.name)}
-                  </div>
-
-                  <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-left space-y-1">
-                    <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono flex justify-between">
-                      <span>{isThai ? 'ระดับ' : 'Level'}:</span>
-                      <span className="text-cyan-700 dark:text-cyan-300 font-bold">{wl?.waterLevelMsl} ม.</span>
+                  {/* Node Box */}
+                  <Link
+                    to="/basin/$basinSlug/station/$stationId"
+                    params={{ basinSlug, stationId: st.id }}
+                    className={`w-full max-w-[130px] rounded-2xl border bg-white dark:bg-slate-900/95 p-3 text-center transition-all hover:scale-105 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shadow-sm ${ringColor}`}
+                  >
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <span className="font-mono text-xs font-bold text-cyan-700 dark:text-cyan-300 truncate max-w-[90px]">
+                        {st.code}
+                      </span>
                     </div>
-                    <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono flex justify-between">
-                      <span>{isThai ? 'อัตราไหล' : 'Q'}:</span>
-                      {wl?.discharge != null && wl.discharge > 0 ? (
-                        <span className="text-slate-800 dark:text-slate-200 font-bold">{wl.discharge} m³/s</span>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-500 font-sans font-medium">{isThai ? 'ไม่มีข้อมูล' : 'No data'}</span>
-                      )}
+
+                    <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={t(st.name)}>
+                      {t(st.name)}
                     </div>
-                  </div>
 
-                  {/* Fill progress */}
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-2">
-                    <div
-                      className={`h-full rounded-full ${
-                        fillPct >= 85
-                          ? 'bg-rose-500'
-                          : fillPct >= 70
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${Math.min(100, fillPct)}%` }}
-                    />
-                  </div>
-                  <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 text-right mt-0.5 font-medium">
-                    {fillPct}% {isThai ? 'ตลิ่ง' : 'cap'}
-                  </div>
-                </Link>
+                    {wl ? (
+                      <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-left space-y-1">
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono flex justify-between">
+                          <span>{isThai ? 'ระดับ' : 'Level'}:</span>
+                          <span className="text-cyan-700 dark:text-cyan-300 font-bold">{wl.waterLevelMsl} ม.</span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono flex justify-between">
+                          <span>{isThai ? 'อัตราไหล' : 'Q'}:</span>
+                          {wl.discharge != null && wl.discharge > 0 ? (
+                            <span className="text-slate-800 dark:text-slate-200 font-bold">{wl.discharge} m³/s</span>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500 font-sans font-medium">-</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-center">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-600 font-sans">
+                          {isThai ? 'ไม่มีข้อมูล' : 'No data'}
+                        </span>
+                      </div>
+                    )}
 
-                {/* Arrow connector between nodes */}
+                    {/* Fill progress — only if has data */}
+                    {wl && (
+                      <>
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-2">
+                          <div
+                            className={`h-full rounded-full ${
+                              fillPct >= 85 ? 'bg-rose-500' : fillPct >= 70 ? 'bg-amber-500' : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${Math.min(100, fillPct)}%` }}
+                          />
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 text-right mt-0.5 font-medium">
+                          {fillPct}% {isThai ? 'ตลิ่ง' : 'cap'}
+                        </div>
+                      </>
+                    )}
+                  </Link>
+                </div>
+
+
+                {/* Connector + Travel Time between nodes */}
                 {!isDownstream && (
-                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 hidden">
-                    <ArrowDown className="w-4 h-4 text-cyan-500 -rotate-90 animate-pulse" />
-                  </div>
+                  <div className="flex flex-col items-center justify-center self-center gap-1 px-0.5 shrink-0 mt-8">
+                    {/* Flow arrow */}
+                    <ChevronRight className="w-5 h-5 text-cyan-500 dark:text-cyan-400 opacity-70" />
+                    {/* Travel time badge */}
+                    {travelLabel && (
+                      <div className="flex items-center gap-0.5 bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 rounded-full px-1.5 py-0.5 text-[9px] font-mono text-cyan-700 dark:text-cyan-300 whitespace-nowrap">
+                        <Clock className="w-2.5 h-2.5 shrink-0" />
+                        <span>{travelLabel}</span>
+                      </div>
+                    )}
+          </div>
                 )}
-              </div>
+              </React.Fragment>
             );
           })}
 
         </div>
+      </div>
+
+      {/* Footer note */}
+      <div className="text-[11px] text-slate-400 dark:text-slate-500 text-right font-mono">
+        {isThai ? `แสดง ${visibleStations.length} สถานีที่มีข้อมูล` : `Showing ${visibleStations.length} stations with data`}
+        {edges.length > 0 && (isThai ? ' · เวลาน้ำไหลโดยประมาณ' : ' · estimated travel times')}
       </div>
     </div>
   );

@@ -3,12 +3,13 @@ import { Station } from '../types/station';
 import { BASINS_DATA } from './data/multiBasinData';
 import { YOM_STATIONS } from './data/yomStations';
 import { OTHER_BASIN_STATIONS } from './data/otherBasinStations';
-import { r2Client, R2StationSnapshotItem } from './r2Client';
+import { r2Client, R2StationSnapshotItem, R2RiverChainEdge } from './r2Client';
 
 // In-memory cache for live R2 data
 let cachedBasins: Basin[] = [...BASINS_DATA];
 const cachedStationsByBasin = new Map<string, Station[]>();
 const cachedRiverChainByBasin = new Map<string, Station[]>();
+const cachedRiverChainEdgesByBasin = new Map<string, R2RiverChainEdge[]>();
 
 // Format Thai date and time display (Asia/Bangkok timezone)
 export function formatThaiTime(
@@ -367,6 +368,8 @@ export function getStationsForBasin(basinId: string): Station[] {
 
 /**
  * 4. Fetch River Chain Stations from R2 (/basin/{slug}/river/chain.json)
+ * Backend already filters to only include stations with non-missing telemetry.
+ * Frontend shows all stations present in chain.json (ordered upstream→downstream).
  */
 export async function fetchRiverChainStations(basinSlug: string): Promise<Station[]> {
   const normalized = basinSlug.toLowerCase().trim();
@@ -393,6 +396,10 @@ export async function fetchRiverChainStations(basinSlug: string): Promise<Statio
 
       if (ordered.length > 0) {
         cachedRiverChainByBasin.set(normalized, ordered);
+        // Cache edges for RiverChainView travel time hints
+        if (chainData.edges && chainData.edges.length > 0) {
+          cachedRiverChainEdgesByBasin.set(normalized, chainData.edges);
+        }
         return ordered;
       }
     }
@@ -412,6 +419,14 @@ export function getRiverChainStations(basinId: string): Station[] {
   return stations
     .filter((s) => s.stationType === 'water_level' && s.riverOrder !== undefined)
     .sort((a, b) => (a.riverOrder || 0) - (b.riverOrder || 0));
+}
+
+/**
+ * Get cached river chain edges (travel time between stations)
+ */
+export function getRiverChainEdges(basinId: string): R2RiverChainEdge[] {
+  const normalized = basinId.toLowerCase().trim();
+  return cachedRiverChainEdgesByBasin.get(normalized) || [];
 }
 
 /**
