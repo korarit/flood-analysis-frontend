@@ -1,14 +1,9 @@
 import React from 'react';
-import { StationType } from '../../types/station';
 import { SituationStatus } from '../../types/basin';
 import { useLanguage } from '../../hooks/useLanguage';
-import { Layers, Waves, CloudRain, ShieldCheck, AlertCircle, AlertTriangle, Flame, HelpCircle } from 'lucide-react';
+import { Layers } from 'lucide-react';
 
 interface MapFilterControlProps {
-  showWaterLevel: boolean;
-  setShowWaterLevel: (v: boolean) => void;
-  showRainfall: boolean;
-  setShowRainfall: (v: boolean) => void;
   statusFilters: Record<SituationStatus, boolean>;
   setStatusFilters: React.Dispatch<React.SetStateAction<Record<SituationStatus, boolean>>>;
   baseMapType: 'streets' | 'dark' | 'satellite';
@@ -16,10 +11,6 @@ interface MapFilterControlProps {
 }
 
 export const MapFilterControl: React.FC<MapFilterControlProps> = ({
-  showWaterLevel,
-  setShowWaterLevel,
-  showRainfall,
-  setShowRainfall,
   statusFilters,
   setStatusFilters,
   baseMapType,
@@ -65,33 +56,6 @@ export const MapFilterControl: React.FC<MapFilterControlProps> = ({
           >
             {isThai ? 'ดาวเทียม' : 'Satellite'}
           </button>
-        </div>
-      </div>
-
-      {/* Station Type Filters (§32) */}
-      <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800/80 font-medium">
-        <span className="font-bold text-slate-900 dark:text-slate-300 block">{isThai ? 'ประเภทสถานี' : 'Station Types'}</span>
-        <div className="space-y-1.5">
-          <label className="flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-300 transition-colors">
-            <input
-              type="checkbox"
-              checked={showWaterLevel}
-              onChange={(e) => setShowWaterLevel(e.target.checked)}
-              className="rounded bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-cyan-600 focus:ring-cyan-500/20"
-            />
-            <Waves className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-            <span>{isThai ? 'สถานีวัดระดับน้ำ' : 'Water Level Stations'}</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer hover:text-blue-600 dark:hover:text-blue-300 transition-colors">
-            <input
-              type="checkbox"
-              checked={showRainfall}
-              onChange={(e) => setShowRainfall(e.target.checked)}
-              className="rounded bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500/20"
-            />
-            <CloudRain className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>{isThai ? 'สถานีวัดปริมาณน้ำฝน' : 'Rainfall Stations'}</span>
-          </label>
         </div>
       </div>
 

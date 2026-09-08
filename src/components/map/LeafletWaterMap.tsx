@@ -82,7 +82,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   zoom,
   selectedStationId,
   onSelectStation,
-  baseMapType,
+  baseMapType = 'satellite',
   userLocation,
   radiusKm,
   basinSlug,
@@ -109,7 +109,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Custom pane for the 90% black world mask (above tiles at 200, below overlays at 400 & markers at 600)
+      // Custom pane for the 70% black world mask (above tiles at 200, below overlays at 400 & markers at 600)
       if (!map.getPane('maskPane')) {
         const maskPane = map.createPane('maskPane');
         maskPane.style.zIndex = '350';
@@ -129,7 +129,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
     };
   }, []);
 
-  // Update Base Map Tile Layer (Default: OpenStreetMap)
+  // Update Base Map Tile Layer (Default: Satellite)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -138,18 +138,18 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
       map.removeLayer(tileLayerRef.current);
     }
 
-    // Default to standard OpenStreetMap
-    let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-    let subdomains = 'abc';
+    // Default to Satellite
+    let tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+    let attribution = 'Tiles &copy; Esri';
+    let subdomains = 'abcd';
 
-    if (baseMapType === 'dark') {
+    if (baseMapType === 'streets') {
+      tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+      subdomains = 'abc';
+    } else if (baseMapType === 'dark') {
       tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
       attribution = '&copy; OpenStreetMap &copy; CARTO';
-      subdomains = 'abcd';
-    } else if (baseMapType === 'satellite') {
-      tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = 'Tiles &copy; Esri';
       subdomains = 'abcd';
     }
 
@@ -170,7 +170,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
     }
   }, [center, zoom]);
 
-  // Load Basin Boundary GeoJSON from Cloudflare R2 and apply 90% black mask outside
+  // Load Basin Boundary GeoJSON from Cloudflare R2 and apply 70% black mask outside
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !basinSlug) return;
@@ -193,12 +193,12 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
       try {
         const rings = extractPolygonRings(geoJsonData);
 
-        // 1. Render black mask outside the basin with 90% opacity (0.9)
+        // 1. Render black mask outside the basin with 70% opacity (0.7)
         if (rings.length > 0) {
           const maskPolygon = L.polygon([WORLD_MASK_COORDS, ...rings], {
             stroke: false,
             fillColor: '#000000',
-            fillOpacity: 0.9,
+            fillOpacity: 0.7,
             interactive: false,
             fillRule: 'evenodd',
             pane: 'maskPane',

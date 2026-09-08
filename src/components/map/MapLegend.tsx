@@ -54,8 +54,8 @@ export const MapLegend: React.FC = () => {
           <span>{isThai ? 'ขอบเขตลุ่มน้ำ' : 'Basin Boundary'}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-5 h-3 rounded bg-black/90 border border-slate-600" />
-          <span>{isThai ? 'พื้นที่นอกลุ่มน้ำ (เงาดำ 90%)' : 'Outside Basin (90% Mask)'}</span>
+          <div className="w-5 h-3 rounded bg-black/70 border border-slate-600" />
+          <span>{isThai ? 'พื้นที่นอกลุ่มน้ำ (เงาดำ 70%)' : 'Outside Basin (70% Mask)'}</span>
         </div>
       </div>
     </div>

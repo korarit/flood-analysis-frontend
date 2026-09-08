@@ -228,16 +228,33 @@ class R2Client {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
 
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+      let res: Response | null = null;
+      try {
+        res = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+      } catch (directErr: any) {
+        // Fallback: If direct R2 fetch was blocked by browser CORS policy, use dev proxy (/r2-dev)
+        if (url.includes('.r2.dev') && typeof window !== 'undefined') {
+          try {
+            res = await fetch(`/r2-dev/${cleanPath}`, {
+              signal: controller.signal,
+              headers: { Accept: 'application/json' },
+            });
+          } catch {
+            throw directErr;
+          }
+        } else {
+          throw directErr;
+        }
+      }
       clearTimeout(timeoutId);
 
-      if (!res.ok) {
-        if (res.status !== 404) {
+      if (!res || !res.ok) {
+        if (res && res.status !== 404) {
           console.warn(`[R2Client] HTTP ${res.status} fetching ${url}`);
         }
         return null;

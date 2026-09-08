@@ -25,9 +25,11 @@ export function BasinMapPage() {
   const { savedStationId, saveAsNearbyStation } = useNearbyStation(currentSlug);
   const { t, isThai } = useLanguage();
 
-  // Map Filter State
-  const [showWaterLevel, setShowWaterLevel] = useState(true);
-  const [showRainfall, setShowRainfall] = useState(true);
+  // Map Filter State: Default to water stations (§User Requirement)
+  type StationFilterMode = 'water' | 'rainfall' | 'all';
+  const [stationTypeFilter, setStationTypeFilter] = useState<StationFilterMode>('water');
+  const showWaterLevel = stationTypeFilter === 'water' || stationTypeFilter === 'all';
+  const showRainfall = stationTypeFilter === 'rainfall' || stationTypeFilter === 'all';
   const [statusFilters, setStatusFilters] = useState<Record<SituationStatus, boolean>>({
     normal: true,
     watch: true,
@@ -35,7 +37,7 @@ export function BasinMapPage() {
     critical: true,
     missing: true,
   });
-  const [baseMapType, setBaseMapType] = useState<'streets' | 'dark' | 'satellite'>('streets');
+  const [baseMapType, setBaseMapType] = useState<'streets' | 'dark' | 'satellite'>('satellite');
   
   // Search & Selection
   const [sidebarSearch, setSidebarSearch] = useState('');
@@ -143,55 +145,141 @@ export function BasinMapPage() {
       <div className="relative flex-1 h-full w-full">
         
         {/* Floating Controls Overlay (Top Right) */}
-        <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
+        <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-2 max-w-[calc(100vw-2rem)]">
           
-          <button
-            onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-            className={`p-2.5 rounded-2xl border backdrop-blur-xl shadow-lg transition-all flex items-center gap-2 text-xs font-bold cursor-pointer ${
-              isFilterPanelOpen
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400'
-                : 'bg-white/95 dark:bg-slate-950/90 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-900'
-            }`}
-          >
-            <Filter className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-            <span className="hidden sm:inline">{isThai ? 'ตัวกรองเลเยอร์' : 'Layer Filters'}</span>
-          </button>
+          {/* Top Control Buttons: Layer Filters & Legend */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsFilterPanelOpen(!isFilterPanelOpen);
+                if (isLegendOpen) setIsLegendOpen(false);
+              }}
+              className={`p-2.5 px-3 rounded-2xl border backdrop-blur-xl shadow-lg transition-all flex items-center gap-2 text-xs font-bold cursor-pointer ${
+                isFilterPanelOpen
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                  : 'bg-white/95 dark:bg-slate-950/90 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Filter className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span className="hidden sm:inline">{isThai ? 'ตัวกรองเลเยอร์' : 'Layer Filters'}</span>
+            </button>
 
-          <button
-            onClick={() => setIsLegendOpen(!isLegendOpen)}
-            className={`p-2.5 rounded-2xl border backdrop-blur-xl shadow-lg transition-all flex items-center gap-2 text-xs font-bold cursor-pointer ${
-              isLegendOpen
-                ? 'bg-cyan-500 text-slate-950 border-cyan-400'
-                : 'bg-white/95 dark:bg-slate-950/90 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-900'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-            <span className="hidden sm:inline">{isThai ? 'สัญลักษณ์' : 'Legend'}</span>
-          </button>
+            <button
+              onClick={() => {
+                setIsLegendOpen(!isLegendOpen);
+                if (isFilterPanelOpen) setIsFilterPanelOpen(false);
+              }}
+              className={`p-2.5 px-3 rounded-2xl border backdrop-blur-xl shadow-lg transition-all flex items-center gap-2 text-xs font-bold cursor-pointer ${
+                isLegendOpen
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-400'
+                  : 'bg-white/95 dark:bg-slate-950/90 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span className="hidden sm:inline">{isThai ? 'คำอธิบาย' : 'Legend'}</span>
+            </button>
+          </div>
+
+          {/* Station Type Selector: ย้ายมาอยู่ล่างคำอธิบาย แสดงให้เลือกแบบชัดๆ default คือสถานีน้ำ */}
+          <div className="w-64 sm:w-72 rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white/95 dark:bg-slate-950/90 p-2.5 backdrop-blur-xl shadow-xl space-y-2 text-xs transition-colors">
+            <div className="flex items-center justify-between px-1">
+              <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                {isThai ? 'ประเภทสถานี' : 'Station Type'}
+              </span>
+              <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-bold">
+                {stationTypeFilter === 'water'
+                  ? (isThai ? 'สถานีระดับน้ำ' : 'Water Level')
+                  : stationTypeFilter === 'rainfall'
+                  ? (isThai ? 'สถานีวัดน้ำฝน' : 'Rainfall')
+                  : (isThai ? 'แสดงทั้งหมด' : 'All Types')}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+              {/* Water Level Button (Default) */}
+              <button
+                type="button"
+                onClick={() => setStationTypeFilter('water')}
+                className={`py-1.5 px-1.5 rounded-lg font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                  stationTypeFilter === 'water'
+                    ? 'bg-cyan-500 text-slate-950 shadow-md ring-1 ring-cyan-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <Waves className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[11px] truncate">{isThai ? 'สถานีน้ำ' : 'Water'}</span>
+                </div>
+                <span className={`text-[10px] font-mono leading-none ${
+                  stationTypeFilter === 'water' ? 'text-slate-950 font-extrabold' : 'text-slate-400 dark:text-slate-500'
+                }`}>
+                  ({stations.filter((s) => s.stationType === 'water_level').length})
+                </span>
+              </button>
+
+              {/* Rainfall Button */}
+              <button
+                type="button"
+                onClick={() => setStationTypeFilter('rainfall')}
+                className={`py-1.5 px-1.5 rounded-lg font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                  stationTypeFilter === 'rainfall'
+                    ? 'bg-blue-500 text-white shadow-md ring-1 ring-blue-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <CloudRain className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[11px] truncate">{isThai ? 'สถานีฝน' : 'Rain'}</span>
+                </div>
+                <span className={`text-[10px] font-mono leading-none ${
+                  stationTypeFilter === 'rainfall' ? 'text-blue-100 font-extrabold' : 'text-slate-400 dark:text-slate-500'
+                }`}>
+                  ({stations.filter((s) => s.stationType === 'rainfall').length})
+                </span>
+              </button>
+
+              {/* All Stations Button */}
+              <button
+                type="button"
+                onClick={() => setStationTypeFilter('all')}
+                className={`py-1.5 px-1.5 rounded-lg font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                  stationTypeFilter === 'all'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md ring-1 ring-cyan-400'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5 shrink-0" />
+                  <span className="text-[11px] truncate">{isThai ? 'ทั้งหมด' : 'All'}</span>
+                </div>
+                <span className={`text-[10px] font-mono leading-none ${
+                  stationTypeFilter === 'all' ? 'text-slate-950 font-extrabold' : 'text-slate-400 dark:text-slate-500'
+                }`}>
+                  ({stations.length})
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Floating Filter Panel Dropdown */}
+          {isFilterPanelOpen && (
+            <div className="w-72 animate-scaleUp">
+              <MapFilterControl
+                statusFilters={statusFilters}
+                setStatusFilters={setStatusFilters}
+                baseMapType={baseMapType}
+                setBaseMapType={setBaseMapType}
+              />
+            </div>
+          )}
+
+          {/* Floating Legend Dropdown */}
+          {isLegendOpen && (
+            <div className="w-64 animate-scaleUp">
+              <MapLegend />
+            </div>
+          )}
         </div>
-
-        {/* Floating Filter Panel Dropdown */}
-        {isFilterPanelOpen && (
-          <div className="absolute top-16 right-4 z-30 w-72 animate-scaleUp">
-            <MapFilterControl
-              showWaterLevel={showWaterLevel}
-              setShowWaterLevel={setShowWaterLevel}
-              showRainfall={showRainfall}
-              setShowRainfall={setShowRainfall}
-              statusFilters={statusFilters}
-              setStatusFilters={setStatusFilters}
-              baseMapType={baseMapType}
-              setBaseMapType={setBaseMapType}
-            />
-          </div>
-        )}
-
-        {/* Floating Legend Dropdown */}
-        {isLegendOpen && (
-          <div className="absolute top-16 right-4 z-30 w-64 animate-scaleUp">
-            <MapLegend />
-          </div>
-        )}
 
         {/* Leaflet Map Component */}
         <LeafletWaterMap

@@ -13,5 +13,12 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    proxy: {
+      '/r2-dev': {
+        target: 'https://pub-6d09ad692430411182c45170ee192a0a.r2.dev',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/r2-dev/, ''),
+      },
+    },
   },
 });
