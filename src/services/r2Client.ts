@@ -216,7 +216,12 @@ class R2Client {
     options: { ttlMs?: number; bypassCache?: boolean } = {}
   ): Promise<T | null> {
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    const url = `${R2_PUBLIC_BASE_URL}/${cleanPath}`;
+    // In local dev, route .r2.dev requests through Vite proxy /r2-dev to prevent browser CORS block
+    const isDev = Boolean((import.meta as any).env?.DEV);
+    const resolvedBase = (isDev && R2_PUBLIC_BASE_URL.includes('.r2.dev'))
+      ? '/r2-dev'
+      : R2_PUBLIC_BASE_URL;
+    const url = `${resolvedBase}/${cleanPath}`;
     const ttlMs = options.ttlMs ?? 60_000; // Default 1 minute cache
 
     if (!options.bypassCache && this.cache.has(url)) {
@@ -239,8 +244,8 @@ class R2Client {
           },
         });
       } catch (directErr: any) {
-        // Fallback: If direct R2 fetch was blocked by browser CORS policy, use dev proxy (/r2-dev)
-        if (url.includes('.r2.dev') && typeof window !== 'undefined') {
+        // Fallback: If fetch failed and we haven't tried /r2-dev yet, try dev proxy
+        if (!url.startsWith('/r2-dev') && typeof window !== 'undefined') {
           try {
             res = await fetch(`/r2-dev/${cleanPath}`, {
               signal: controller.signal,
