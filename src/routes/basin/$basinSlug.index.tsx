@@ -3,7 +3,8 @@ import { useParams } from '@tanstack/react-router';
 import { useBasin } from '../../hooks/useBasin';
 import { useNearbyStation } from '../../hooks/useNearbyStation';
 import { useLanguage } from '../../hooks/useLanguage';
-import { getAlertsForBasin } from '../../services/alertService';
+import { getAlertsForBasin, fetchAlertsForBasin } from '../../services/alertService';
+import { WaterAlertEvent } from '../../types/alert';
 import { SituationSummaryCard } from '../../components/basin/SituationSummaryCard';
 import { NearbyStationCard } from '../../components/basin/NearbyStationCard';
 import { RiverChainView } from '../../components/basin/RiverChainView';
@@ -19,9 +20,21 @@ export function BasinOverviewPage() {
   const { nearbyStation } = useNearbyStation(currentSlug);
   const { t, isThai } = useLanguage();
 
-  const alerts = getAlertsForBasin(currentSlug);
+  const [alerts, setAlerts] = React.useState<WaterAlertEvent[]>(() => getAlertsForBasin(currentSlug));
 
-  if (isLoading || !basin) {
+  React.useEffect(() => {
+    let isMounted = true;
+    fetchAlertsForBasin(currentSlug).then((data) => {
+      if (isMounted && data) {
+        setAlerts(data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [currentSlug]);
+
+  if (!basin || (isLoading && riverChain.length === 0 && topWaterLevelStations.length === 0)) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <CardSkeleton count={3} />

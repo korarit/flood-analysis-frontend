@@ -10,7 +10,7 @@ import { Printer, FileSpreadsheet, Check, RefreshCw } from 'lucide-react';
 export function SituationReportPage() {
   const { basinSlug } = useParams({ strict: false }) as { basinSlug?: string };
   const currentSlug = basinSlug || 'yom';
-  const { basin } = useBasin(currentSlug);
+  const { basin, stations } = useBasin(currentSlug);
   const { isThai } = useLanguage();
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [bulletin, setBulletin] = useState<SituationBulletin>(() => getSituationBulletin(currentSlug));
@@ -35,23 +35,28 @@ export function SituationReportPage() {
   };
 
   const handleExportCsv = () => {
-    // Generate sample telemetry CSV
+    // Generate real telemetry CSV from loaded R2 stations
     const rows = [
       ['Station_ID', 'Station_Code', 'Station_Name_TH', 'Station_Type', 'Water_Level_MSL', 'Discharge_m3s', 'Rain_24h_mm', 'Status', 'Updated_At'],
-      ['Y-0014', 'Y.14', 'ศรีสัชนาลัย', 'water_level', '5.82', '285', '-', 'warning', '2026-08-22 18:05:00'],
-      ['Y-0020', 'Y.20', 'บ้านห้วยสัก', 'water_level', '184.20', '340', '-', 'watch', '2026-08-22 18:05:00'],
-      ['Y-0001C', 'Y.1C', 'บ้านน้ำโค้ง', 'water_level', '153.80', '420', '-', 'watch', '2026-08-22 18:05:00'],
-      ['Y-0003A', 'Y.3A', 'เมืองสุโขทัย', 'water_level', '50.15', '310', '-', 'watch', '2026-08-22 18:05:00'],
-      ['Y-0006', 'Y.6', 'บางระกำ', 'water_level', '41.20', '240', '-', 'normal', '2026-08-22 18:00:00'],
-      ['621', 'PKTI', 'ทต.พรานกระต่าย', 'rainfall', '-', '-', '88.5', 'warning', '2026-08-22 18:00:00'],
-      ['P-0004', 'P.04', 'สะเอียบ', 'rainfall', '-', '-', '124.0', 'critical', '2026-08-22 18:00:00'],
+      ...stations.map((s) => [
+        s.id,
+        s.code,
+        `"${s.name.th.replace(/"/g, '""')}"`,
+        s.stationType,
+        s.waterLevel ? String(s.waterLevel.waterLevelMsl) : '-',
+        s.waterLevel ? String(s.waterLevel.discharge) : '-',
+        s.rainfall ? String(s.rainfall.rain24h) : '-',
+        s.status,
+        s.lastUpdated,
+      ]),
     ];
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map(e => e.join(',')).join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map((e) => e.join(',')).join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `water_situation_${currentSlug}_20260822.csv`);
+    const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    link.setAttribute('download', `water_situation_${currentSlug}_${dateStamp}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

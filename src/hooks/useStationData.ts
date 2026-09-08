@@ -1,26 +1,57 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Station } from '../types/station';
 import { HistoricalTelemetrySeries } from '../types/telemetry';
-import { getStationById, getStationHistoricalTelemetry } from '../services/stationService';
+import {
+  getStationById,
+  fetchStationDetailAndRelations,
+  getStationHistoricalTelemetry,
+} from '../services/stationService';
 
 export function useStationData(basinId: string, stationId: string) {
-  const station: Station | undefined = useMemo(() => {
-    return getStationById(basinId, stationId);
-  }, [basinId, stationId]);
-
+  const [station, setStation] = useState<Station | undefined>(() => getStationById(basinId, stationId));
   const [timeRange, setTimeRange] = useState<'1d' | '3d' | '7d' | 'custom'>('1d');
   const [chartMode, setChartMode] = useState<'bar' | 'line' | 'combined'>('combined');
-  
-  // Date inputs
-  const todayStr = '2026-08-22';
-  const [startDate, setStartDate] = useState<string>('2026-08-21');
+
+  // Date inputs default to current date
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  });
   const [endDate, setEndDate] = useState<string>(todayStr);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Fetch live R2 station detail and relations
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    const initialSt = getStationById(basinId, stationId);
+    if (initialSt) setStation(initialSt);
+
+    fetchStationDetailAndRelations(basinId, stationId)
+      .then((enriched) => {
+        if (isMounted && enriched) {
+          setStation(enriched);
+        }
+      })
+      .catch((err) => {
+        console.warn(`[useStationData] Failed to fetch R2 detail for ${stationId}:`, err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [basinId, stationId]);
 
   // Update dates when 1d, 3d, 7d buttons are clicked
   const handleTimeRangeChange = (range: '1d' | '3d' | '7d') => {
     setTimeRange(range);
-    const end = new Date('2026-08-22T18:05:00');
+    const end = new Date();
     let daysBack = 1;
     if (range === '3d') daysBack = 3;
     if (range === '7d') daysBack = 7;
@@ -40,18 +71,11 @@ export function useStationData(basinId: string, stationId: string) {
     setTimeRange('custom');
   };
 
-  // Historical Telemetry Series (Auto-loads when station, timeRange, or dates change)
+  // Historical Telemetry Series
   const telemetrySeries: HistoricalTelemetrySeries | null = useMemo(() => {
     if (!station) return null;
     return getStationHistoricalTelemetry(station, timeRange, startDate, endDate);
   }, [station, timeRange, startDate, endDate]);
-
-  // Simulate loading state transitions on timeframe change
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => setIsLoading(false), 200);
-    return () => clearTimeout(timer);
-  }, [timeRange, startDate, endDate]);
 
   return {
     station,

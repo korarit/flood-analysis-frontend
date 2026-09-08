@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useLanguage } from '../hooks/useLanguage';
 import { useTheme } from '../hooks/useTheme';
-import { getAllBasins } from '../services/basinService';
+import { getAllBasins, fetchAllBasins } from '../services/basinService';
 import { getStoredNearbyStationId } from '../services/storageService';
 import { StatusBadge } from '../components/common/StatusBadge';
 import {
@@ -25,8 +25,22 @@ export function BasinSelectionPage() {
   const { t, language, setLanguage, isThai } = useLanguage();
   const { theme, isDark, toggleTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
-  const allBasins = getAllBasins();
+  const [allBasins, setAllBasins] = useState(() => getAllBasins());
+  const [isLoadingBasins, setIsLoadingBasins] = useState(true);
   const savedNearbyId = getStoredNearbyStationId();
+
+  React.useEffect(() => {
+    let isMounted = true;
+    fetchAllBasins().then((data) => {
+      if (isMounted && data && data.length > 0) {
+        setAllBasins(data);
+        setIsLoadingBasins(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Filter basins by search query (TH/EN name or covered provinces)
   const filteredBasins = allBasins.filter((b) => {
@@ -95,7 +109,7 @@ export function BasinSelectionPage() {
         <div className="text-center space-y-4 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-semibold shadow-glow-cyan/20">
             <RadioTower className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>{isThai ? 'สถานการณ์น้ำเรียลไทม์ 5 ลุ่มน้ำหลัก' : 'Real-time 5 Major River Basins'}</span>
+            <span>{isThai ? `สถานการณ์น้ำเรียลไทม์ ${allBasins.length} ลุ่มน้ำหลัก` : `Real-time ${allBasins.length} Major River Basins`}</span>
           </div>
 
           <h2 className="text-3xl sm:text-5xl font-extrabold text-slate-100 tracking-tight leading-tight">

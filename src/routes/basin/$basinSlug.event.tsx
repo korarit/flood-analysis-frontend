@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
 import { useBasin } from '../../hooks/useBasin';
 import { useLanguage } from '../../hooks/useLanguage';
-import { getAlertsForBasin } from '../../services/alertService';
+import { getAlertsForBasin, fetchAlertsForBasin } from '../../services/alertService';
+import { WaterAlertEvent } from '../../types/alert';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import {
   Bell,
@@ -19,7 +20,19 @@ export function EventsAndAlertsPage() {
   const { t, isThai } = useLanguage();
 
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'critical' | 'warning' | 'watch'>('all');
-  const allEvents = getAlertsForBasin(currentSlug);
+  const [allEvents, setAllEvents] = useState<WaterAlertEvent[]>(() => getAlertsForBasin(currentSlug));
+
+  React.useEffect(() => {
+    let isMounted = true;
+    fetchAlertsForBasin(currentSlug).then((data) => {
+      if (isMounted && data) {
+        setAllEvents(data);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [currentSlug]);
 
   const filteredEvents = allEvents.filter((ev) => {
     if (filterSeverity === 'all') return true;

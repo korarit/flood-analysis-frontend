@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { Station } from '../../types/station';
 import { SituationStatus } from '../../types/basin';
 import { useLanguage } from '../../hooks/useLanguage';
+import { r2Client } from '../../services/r2Client';
 
 interface LeafletWaterMapProps {
   stations: Station[];
@@ -13,6 +14,7 @@ interface LeafletWaterMapProps {
   baseMapType: 'dark' | 'streets' | 'satellite';
   userLocation?: { lat: number; long: number } | null;
   radiusKm?: number;
+  basinSlug?: string;
 }
 
 export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
@@ -24,6 +26,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   baseMapType,
   userLocation,
   radiusKm,
+  basinSlug,
 }) => {
   const { t, isThai } = useLanguage();
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -31,6 +34,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const userLayerRef = useRef<L.LayerGroup | null>(null);
+  const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
 
   // Initialize Map
   useEffect(() => {
@@ -94,6 +98,46 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
       map.setView(center, zoom, { animate: true });
     }
   }, [center, zoom]);
+
+  // Load Basin Boundary GeoJSON from Cloudflare R2
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !basinSlug) return;
+
+    let isMounted = true;
+    r2Client.getBoundaryGeoJson(basinSlug).then((geoJsonData) => {
+      if (!isMounted || !map || !geoJsonData) return;
+
+      if (geoJsonLayerRef.current) {
+        map.removeLayer(geoJsonLayerRef.current);
+        geoJsonLayerRef.current = null;
+      }
+
+      try {
+        const geoLayer = L.geoJSON(geoJsonData, {
+          style: {
+            color: '#06B6D4',
+            weight: 2,
+            dashArray: '4, 4',
+            fillColor: '#06B6D4',
+            fillOpacity: 0.05,
+          },
+        }).addTo(map);
+
+        geoJsonLayerRef.current = geoLayer;
+      } catch (e) {
+        console.warn('Failed to parse boundary geojson:', e);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (geoJsonLayerRef.current && map) {
+        map.removeLayer(geoJsonLayerRef.current);
+        geoJsonLayerRef.current = null;
+      }
+    };
+  }, [basinSlug]);
 
   // Render Station Pulse Markers
   useEffect(() => {

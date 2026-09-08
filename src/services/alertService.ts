@@ -1,6 +1,82 @@
 import { WaterAlertEvent, SituationBulletin } from '../types/alert';
-import { getBasinById, getStationsForBasin } from './basinService';
+import { getBasinById, getStationsForBasin, formatThaiTime } from './basinService';
+import { r2Client } from './r2Client';
 
+/**
+ * Fetch Situation Bulletin dynamically from Cloudflare R2 (100% Zero-Backend)
+ */
+export async function fetchSituationBulletin(basinId: string): Promise<SituationBulletin> {
+  const normalized = basinId.toLowerCase().trim();
+
+  // 1. Load from Cloudflare R2 Public Object Path (/basin/{slug}/report/bulletin-latest.json)
+  try {
+    const data = await r2Client.getBulletinLatest(normalized);
+    if (data && data.overallSituation) {
+      return data as SituationBulletin;
+    }
+  } catch (err) {
+    console.warn(`⚠️ [alertService] Failed to load R2 bulletin for ${basinId}:`, err);
+  }
+
+  // 2. Fallback to dynamic client-side synthesizer based on current stations
+  return getSituationBulletin(basinId);
+}
+
+/**
+ * Fetch Live Events and Alerts Feed from Cloudflare R2 (/basin/{slug}/events/feed.json)
+ */
+export async function fetchAlertsForBasin(basinId: string): Promise<WaterAlertEvent[]> {
+  const normalized = basinId.toLowerCase().trim();
+  const basin = getBasinById(normalized);
+  const basinName = basin ? basin.name : { th: 'ลุ่มน้ำ', en: 'Basin' };
+
+  try {
+    const feedData = await r2Client.getEventsFeed(normalized);
+    if (feedData && feedData.events && feedData.events.length > 0) {
+      return feedData.events.map((ev, index) => {
+        const isWarning = ev.level === 'warning' || ev.level === 'critical';
+        const isUpstream = ev.title.includes('ต้นน้ำ') || ev.title.includes('ฝนตกหนัก');
+        const alertType = isUpstream ? 'heavy_rain' : isWarning ? 'warning_level' : 'rapid_rise';
+
+        return {
+          id: ev.id || `r2-event-${index}`,
+          type: alertType,
+          stationId: ev.stationId || '',
+          stationCode: ev.stationId ? `ST-${ev.stationId}` : 'ALERT',
+          stationName: { th: ev.title, en: ev.title },
+          basinId: normalized,
+          basinName,
+          severity: ev.level || 'watch',
+          title: {
+            th: ev.title,
+            en: ev.title,
+          },
+          description: {
+            th: ev.message,
+            en: ev.message,
+          },
+          ruleTriggered: {
+            th: 'ระบบประมวลผลโทรมาตรและตรวจจับระดับความเสี่ยงอัตโนมัติ',
+            en: 'Automated telemetry ingestion & hydrological risk assessment',
+          },
+          value: ev.level === 'critical' ? 'วิกฤต' : ev.level === 'warning' ? 'เตือนภัย' : 'เฝ้าระวัง',
+          threshold: 'เกณฑ์วิกฤต/เตือนภัย',
+          timestamp: formatThaiTime(ev.timestamp),
+          relativeTime: 'เมื่อสักครู่',
+        };
+      });
+    }
+  } catch (err) {
+    console.warn(`⚠️ [alertService] Failed to fetch events feed for ${basinId} from R2:`, err);
+  }
+
+  // Fallback to rule-based events generated client-side from telemetry
+  return getAlertsForBasin(basinId);
+}
+
+/**
+ * Dynamic fallback synthesizer based on current basin stations data
+ */
 export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
   const basin = getBasinById(basinId);
   const stations = getStationsForBasin(basinId);
@@ -8,7 +84,7 @@ export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
 
   const events: WaterAlertEvent[] = [];
 
-  stations.forEach(station => {
+  stations.forEach((station) => {
     // 1. Rapid rise alert rule (delta >= 0.20 m/h)
     if (station.waterLevel && station.waterLevel.deltaPerHour >= 0.20) {
       events.push({
@@ -25,8 +101,8 @@ export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
           en: `Rapid Water Level Rise (+${station.waterLevel.deltaPerHour} m/h)`,
         },
         description: {
-          th: `ตรวจพบอัตราการเพิ่มของระดับน้ำสูงผิดปกติที่สถานี ${station.code} (${station.name.th}) อ.${station.geocode.amphoe.th} จ.${station.geocode.province.th}`,
-          en: `Abnormal rapid rise detected at station ${station.code} (${station.name.en}), ${station.geocode.amphoe.en}.`,
+          th: `ตรวจพบอัตราการเพิ่มของระดับน้ำสูงผิดปกติที่สถานี ${station.code} (${station.name.th})`,
+          en: `Abnormal rapid rise detected at station ${station.code} (${station.name.en}).`,
         },
         ruleTriggered: {
           th: 'กฎเตือนภัย: อัตราการเพิ่มระดับน้ำ > 0.20 ม./ชม. ติดต่อกัน',
@@ -34,8 +110,8 @@ export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
         },
         value: `+${station.waterLevel.deltaPerHour} ม./ชม.`,
         threshold: '> 0.20 ม./ชม.',
-        timestamp: '2026-08-22 18:02:00',
-        relativeTime: '3 นาทีที่แล้ว',
+        timestamp: station.lastUpdated,
+        relativeTime: 'เมื่อสักครู่',
       });
     }
 
@@ -64,12 +140,12 @@ export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
         },
         value: `${station.rainfall.rain1h} มม.`,
         threshold: '> 30 มม.',
-        timestamp: '2026-08-22 17:45:00',
-        relativeTime: '20 นาทีที่แล้ว',
+        timestamp: station.lastUpdated,
+        relativeTime: 'เมื่อสักครู่',
       });
     }
 
-    // 3. Bank capacity alert rule (> 85% capacity)
+    // 3. Bank capacity alert rule (> 70% capacity)
     if (station.waterLevel && station.waterLevel.bankCapacityPercent >= 70) {
       events.push({
         id: `alert-bank-${station.id}`,
@@ -94,7 +170,7 @@ export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
         },
         value: `${station.waterLevel.waterLevelMsl} ม.รทก.`,
         threshold: `${station.waterLevel.warningLevelMsl} ม.รทก.`,
-        timestamp: '2026-08-22 18:05:00',
+        timestamp: station.lastUpdated,
         relativeTime: 'เมื่อสักครู่',
       });
     }
@@ -103,41 +179,8 @@ export function getAlertsForBasin(basinId: string): WaterAlertEvent[] {
   return events;
 }
 
-const R2_PUBLIC_BASE_URL = (import.meta as any).env?.VITE_R2_PUBLIC_BASE_URL || 'http://localhost:3001/r2-static';
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001/api';
-
 /**
- * Fetch Situation Bulletin dynamically from Cloudflare R2 / Backend REST API
- */
-export async function fetchSituationBulletin(basinId: string): Promise<SituationBulletin> {
-  // 1. Try loading from R2 Public Object Path
-  try {
-    const res = await fetch(`${R2_PUBLIC_BASE_URL}/basin/${basinId}/report/bulletin-latest.json`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.overallSituation) {
-        return data as SituationBulletin;
-      }
-    }
-  } catch {}
-
-  // 2. Try loading from Backend REST API
-  try {
-    const res = await fetch(`${API_BASE_URL}/basins/${basinId}/report`);
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && json.data) {
-        return json.data as SituationBulletin;
-      }
-    }
-  } catch {}
-
-  // 3. Fallback to dynamic synthesizer based on current stations
-  return getSituationBulletin(basinId);
-}
-
-/**
- * Dynamic fallback synthesizer based on current basin stations data
+ * Dynamic fallback synthesizer for bulletin based on loaded station data
  */
 export function getSituationBulletin(basinId: string): SituationBulletin {
   const basin = getBasinById(basinId);
@@ -145,22 +188,21 @@ export function getSituationBulletin(basinId: string): SituationBulletin {
   const basinName = basin ? basin.name : { th: 'ลุ่มน้ำ', en: 'River Basin' };
   const overallSeverity = basin ? basin.overallStatus : 'normal';
 
-  const criticalStations = stations.filter(s => s.status === 'critical');
-  const warningStations = stations.filter(s => s.status === 'warning');
-  const watchStations = stations.filter(s => s.status === 'watch');
+  const criticalStations = stations.filter((s) => s.status === 'critical');
+  const warningStations = stations.filter((s) => s.status === 'warning');
 
   const highlights: { th: string; en: string }[] = [];
 
-  stations.slice(0, 3).forEach(s => {
+  stations.slice(0, 3).forEach((s) => {
     if (s.waterLevel) {
       highlights.push({
         th: `สถานี ${s.code} (${s.name.th}) ระดับน้ำ ${s.waterLevel.waterLevelMsl} ม.รทก. คิดเป็น ${s.waterLevel.bankCapacityPercent}% ของตลิ่ง แนวโน้ม ${s.waterLevel.trend === 'rising' ? 'เพิ่มขึ้น' : 'ทรงตัว'}`,
-        en: `Station ${s.code} (${s.name.en}) water level at ${s.waterLevel.waterLevelMsl} m MSL (${s.waterLevel.bankCapacityPercent}% capacity), trend ${s.waterLevel.trend}.`
+        en: `Station ${s.code} (${s.name.en}) water level at ${s.waterLevel.waterLevelMsl} m MSL (${s.waterLevel.bankCapacityPercent}% capacity), trend ${s.waterLevel.trend}.`,
       });
     } else if (s.rainfall) {
       highlights.push({
         th: `สถานี ${s.code} (${s.name.th}) ปริมาณฝน 24 ชม. สะสม ${s.rainfall.rain24h} มม.`,
-        en: `Station ${s.code} (${s.name.en}) recorded 24h rainfall of ${s.rainfall.rain24h} mm.`
+        en: `Station ${s.code} (${s.name.en}) recorded 24h rainfall of ${s.rainfall.rain24h} mm.`,
       });
     }
   });
@@ -168,7 +210,7 @@ export function getSituationBulletin(basinId: string): SituationBulletin {
   if (highlights.length === 0) {
     highlights.push({
       th: `สถานการณ์น้ำและปริมาณฝนในภาพรวมของ${basinName.th}อยู่ในเกณฑ์ปกติ`,
-      en: `Overall water levels and rainfall across ${basinName.en} remain within normal criteria.`
+      en: `Overall water levels and rainfall across ${basinName.en} remain within normal criteria.`,
     });
   }
 
@@ -176,7 +218,10 @@ export function getSituationBulletin(basinId: string): SituationBulletin {
   const isWatch = overallSeverity === 'watch';
 
   const now = new Date();
-  const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const thaiMonths = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+  ];
   const issuedDate = `${now.getDate()} ${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543}`;
   const issuedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} น.`;
 
@@ -196,23 +241,24 @@ export function getSituationBulletin(basinId: string): SituationBulletin {
         ? `Water situation in ${basinName.en} is at ${overallSeverity.toUpperCase()} level with ${criticalStations.length + warningStations.length} stations exceeding warning thresholds.`
         : isWatch
         ? `Water situation in ${basinName.en} is under WATCH status due to continuous rainfall keeping river stages elevated.`
-        : `Water situation in ${basinName.en} is NORMAL. River levels remain within bank capacities with smooth discharge.`
+        : `Water situation in ${basinName.en} is NORMAL. River levels remain within bank capacities with smooth discharge.`,
     },
     overallSeverity,
     keyHighlights: highlights,
-    highRiskAreas: (criticalStations.length > 0 || warningStations.length > 0)
-      ? [...criticalStations, ...warningStations].map(s => ({
-          th: `อ.${s.geocode.amphoe.th} จ.${s.geocode.province.th}`,
-          en: `${s.geocode.amphoe.en} District (${s.geocode.province.en})`
-        }))
-      : [{ th: `ไม่มีพื้นที่เสี่ยงวิกฤตในขณะนี้`, en: `No critical high-risk zones currently identified.` }],
+    highRiskAreas:
+      criticalStations.length > 0 || warningStations.length > 0
+        ? [...criticalStations, ...warningStations].map((s) => ({
+            th: `สถานี ${s.name.th} (${s.code})`,
+            en: `Station ${s.name.en} (${s.code})`,
+          }))
+        : [{ th: `ไม่มีพื้นที่เสี่ยงวิกฤตในขณะนี้`, en: `No critical high-risk zones currently identified.` }],
     upstreamStatus: {
       th: isHigh
         ? `ตอนบน (ต้นน้ำ) มีฝนตกต่อเนื่อง ระดับน้ำในลำน้ำสาขาเพิ่มขึ้นอย่างรวดเร็ว`
         : `ตอนบน (ต้นน้ำ) สภาพอากาศปกติ ระดับน้ำในลำน้ำสาขาทรงตัว`,
       en: isHigh
         ? `Upstream reaches experiencing continuous heavy rain with rising tributary stages.`
-        : `Upstream reaches stable under normal weather conditions.`
+        : `Upstream reaches stable under normal weather conditions.`,
     },
     midstreamStatus: {
       th: isHigh
@@ -220,11 +266,11 @@ export function getSituationBulletin(basinId: string): SituationBulletin {
         : `ตอนกลาง (กลางน้ำ) ระดับน้ำอยู่ในเกณฑ์ควบคุม การระบายน้ำทำได้ตามเกณฑ์`,
       en: isHigh
         ? `Midstream reaches receiving upstream flows with elevated stages near lower banks.`
-        : `Midstream reaches operating under standard regulation criteria.`
+        : `Midstream reaches operating under standard regulation criteria.`,
     },
     downstreamStatus: {
       th: `ตอนล่าง (ปลายน้ำ) ระดับน้ำต่ำกว่าตลิ่ง ประตูระบายน้ำและสถานีสูบน้ำพร้อมรองรับการระบาย`,
-      en: `Downstream reaches remain below bank levels; sluice gates and pumps operating normally.`
+      en: `Downstream reaches remain below bank levels; sluice gates and pumps operating normally.`,
     },
     forecastNext24h: {
       th: isHigh
@@ -232,11 +278,11 @@ export function getSituationBulletin(basinId: string): SituationBulletin {
         : `คาดการณ์ 24 ชั่วโมงข้างหน้า ระดับน้ำมีแนวโน้มทรงตัวถึงลดลงต่อเนื่อง สภาพอากาศปกติ ไม่มีแนวโน้มวิกฤต`,
       en: isHigh
         ? `Forecast for next 24 hours indicates rising stages along main stems. Riparian communities advised to stay alert.`
-        : `Forecast for next 24 hours indicates steady to receding water levels with no critical threats.`
+        : `Forecast for next 24 hours indicates steady to receding water levels with no critical threats.`,
     },
     officerInCharge: {
-      th: 'ระบบประมวลผลสถานการณ์น้ำและอุทกวิทยา',
-      en: 'Water Situation & Hydrology Processing System'
-    }
+      th: 'ระบบประมวลผลสถานการณ์น้ำและอุทกวิทยา (Cloudflare R2 Datasets)',
+      en: 'Water Situation & Hydrology Processing System (Cloudflare R2 Datasets)',
+    },
   };
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Station } from '../types/station';
 import { getStoredNearbyStationId, setStoredNearbyStationId } from '../services/storageService';
 import { getStationById, findNearestStations, NearbyStationResult } from '../services/stationService';
+import { fetchStationsForBasin } from '../services/basinService';
 
 export type GeolocationStatus = 'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported' | 'error';
 
@@ -20,12 +21,16 @@ export function useNearbyStation(basinId: string) {
     setSavedStationIdState(currentSavedId);
 
     if (currentSavedId) {
+      // First check synchronous cache
       const st = getStationById(basinId, currentSavedId);
       if (st) {
         setNearbyStation(st);
       } else {
-        // Fallback or station belongs to another basin
-        setNearbyStation(null);
+        // Try fetching live R2 stations to resolve saved station
+        fetchStationsForBasin(basinId).then((stations) => {
+          const liveSt = stations.find((s) => s.id === currentSavedId || s.code === currentSavedId);
+          setNearbyStation(liveSt || null);
+        });
       }
     } else {
       setNearbyStation(null);
@@ -43,7 +48,7 @@ export function useNearbyStation(basinId: string) {
     setIsScanning(true);
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const coords = {
           lat: pos.coords.latitude,
           long: pos.coords.longitude,
@@ -52,18 +57,20 @@ export function useNearbyStation(basinId: string) {
         setGeoStatus('granted');
         setIsScanning(false);
 
-        // Find nearest water level & rainfall stations
-        const results = findNearestStations(basinId, coords.lat, coords.long, 'all', 100);
+        // Fetch stations from R2 to calculate accurate distances
+        const liveStations = await fetchStationsForBasin(basinId);
+        const results = findNearestStations(basinId, coords.lat, coords.long, 'all', 100, liveStations);
         setNearestList(results);
       },
-      (err) => {
+      async (err) => {
         console.warn('Geolocation permission denied or error:', err.message);
         setGeoStatus('denied');
         setIsScanning(false);
 
         // Fallback default coordinates (Center of Yom Basin: Sukhothai/Phrae)
         const fallbackCoords = { lat: 17.5186, long: 99.7615 };
-        const results = findNearestStations(basinId, fallbackCoords.lat, fallbackCoords.long, 'all', 100);
+        const liveStations = await fetchStationsForBasin(basinId);
+        const results = findNearestStations(basinId, fallbackCoords.lat, fallbackCoords.long, 'all', 100, liveStations);
         setNearestList(results);
       },
       { timeout: 10000, enableHighAccuracy: true }
@@ -71,12 +78,16 @@ export function useNearbyStation(basinId: string) {
   }, [basinId]);
 
   // Set reference station by custom location (e.g. user selected district/landmark)
-  const searchByCustomLocation = useCallback((lat: number, long: number) => {
-    setUserCoords({ lat, long });
-    setGeoStatus('granted');
-    const results = findNearestStations(basinId, lat, long, 'all', 100);
-    setNearestList(results);
-  }, [basinId]);
+  const searchByCustomLocation = useCallback(
+    async (lat: number, long: number) => {
+      setUserCoords({ lat, long });
+      setGeoStatus('granted');
+      const liveStations = await fetchStationsForBasin(basinId);
+      const results = findNearestStations(basinId, lat, long, 'all', 100, liveStations);
+      setNearestList(results);
+    },
+    [basinId]
+  );
 
   // Save station as the single nearby station in localStorage
   const saveAsNearbyStation = useCallback((station: Station) => {

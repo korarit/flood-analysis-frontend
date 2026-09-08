@@ -13,7 +13,7 @@ import { CardSkeleton } from '../../components/common/LoadingSkeleton';
 export function StationListPage() {
   const { basinSlug } = useParams({ strict: false }) as { basinSlug?: string };
   const currentSlug = basinSlug || 'yom';
-  const { basin, isLoading } = useBasin(currentSlug);
+  const { basin, stations, isLoading } = useBasin(currentSlug);
   const { isThai } = useLanguage();
 
   // Filter States
@@ -22,14 +22,18 @@ export function StationListPage() {
   const [situationStatus, setSituationStatus] = useState<'all' | SituationStatus>('all');
   const [sortBy, setSortBy] = useState<'name' | 'water_level' | 'rainfall' | 'status' | 'update_time'>('status');
 
-  const filteredStations = filterStations(currentSlug, {
-    searchQuery,
-    stationType,
-    situationStatus,
-    sortBy,
-  });
+  const filteredStations = filterStations(
+    currentSlug,
+    {
+      searchQuery,
+      stationType,
+      situationStatus,
+      sortBy,
+    },
+    stations
+  );
 
-  if (isLoading || !basin) {
+  if (isLoading && stations.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <CardSkeleton count={6} />

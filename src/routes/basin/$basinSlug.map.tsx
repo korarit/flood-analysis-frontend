@@ -201,6 +201,7 @@ export function BasinMapPage() {
           selectedStationId={selectedStation?.id}
           onSelectStation={(st) => setSelectedStation(st)}
           baseMapType={baseMapType}
+          basinSlug={currentSlug}
         />
 
         {/* 3. RESPONSIVE MODAL: Desktop Centered Modal + Mobile Bottom Modal (§User Requirement) */}
