@@ -71,7 +71,7 @@ export function StationListPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
           {filteredStations.map((station) => (
             <StationCard
-              key={station.id}
+              key={station.uniqueKey || `${station.stationType}-${station.id}`}
               station={station}
               basinSlug={currentSlug}
             />

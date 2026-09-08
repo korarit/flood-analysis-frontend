@@ -107,6 +107,7 @@ export function mapR2StationToStation(
 
   return {
     id: item.id,
+    uniqueKey: `${item.type}-${item.id}`,
     code: item.code || item.id,
     name: item.name || { th: `สถานี ${item.code}`, en: `Station ${item.code}` },
     basinId: basinSlug,

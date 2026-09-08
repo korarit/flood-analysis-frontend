@@ -59,6 +59,7 @@ export interface StationRelation {
 
 export interface Station {
   id: string;                    // Unique identifier e.g. 'Y-0014' or '621'
+  uniqueKey?: string;            // Globally unique key for React lists e.g. 'water_level-268790'
   code: string;                  // Code e.g. 'Y.14', 'PKTI'
   name: LocalizedString;
   basinId: string;               // e.g. 'yom'

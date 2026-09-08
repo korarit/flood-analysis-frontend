@@ -75,7 +75,7 @@ export const StationRelations: React.FC<StationRelationsProps> = ({ station, bas
             const isRelWater = rel.stationType === 'water_level';
             return (
               <div
-                key={rel.stationId}
+                key={`${rel.stationType}-${rel.stationId}-${rel.isUpstream ? 'up' : 'down'}`}
                 className="group rounded-2xl border border-slate-200 dark:border-slate-800/90 bg-slate-50 dark:bg-slate-900/80 p-5 backdrop-blur-md transition-all hover:border-cyan-400 dark:hover:border-cyan-500/40 hover:bg-slate-100 dark:hover:bg-slate-850 shadow-xs dark:shadow-lg flex flex-col justify-between"
               >
                 <div>

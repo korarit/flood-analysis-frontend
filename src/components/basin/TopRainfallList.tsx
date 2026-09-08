@@ -75,7 +75,7 @@ export const TopRainfallList: React.FC<TopRainfallListProps> = ({
             const rainVal = getRainValue(st);
             return (
               <Link
-                key={st.id}
+                key={st.uniqueKey || `top-rf-${st.id}-${idx}`}
                 to="/basin/$basinSlug/station/$stationId"
                 params={{ basinSlug, stationId: st.id }}
                 className="group flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800/80 hover:border-blue-400 dark:hover:border-blue-500/30 transition-all cursor-pointer shadow-xs"

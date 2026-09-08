@@ -278,7 +278,7 @@ export function NearbyStationDiscoveryPage() {
 
           return (
             <div
-              key={station.id}
+              key={station.uniqueKey || `${station.stationType}-${station.id}`}
               className={`rounded-3xl border p-5 sm:p-6 backdrop-blur-xl shadow-md dark:shadow-xl transition-all flex flex-col justify-between ${
                 isSaved
                   ? 'border-cyan-500 bg-cyan-50/70 dark:bg-cyan-950/40 ring-2 ring-cyan-500/30'

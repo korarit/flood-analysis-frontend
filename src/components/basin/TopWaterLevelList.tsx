@@ -39,7 +39,7 @@ export const TopWaterLevelList: React.FC<TopWaterLevelListProps> = ({
             const wl = st.waterLevel;
             return (
               <Link
-                key={st.id}
+                key={st.uniqueKey || `top-wl-${st.id}-${idx}`}
                 to="/basin/$basinSlug/station/$stationId"
                 params={{ basinSlug, stationId: st.id }}
                 className="group flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800/80 hover:border-cyan-400 dark:hover:border-cyan-500/30 transition-all cursor-pointer shadow-xs"

@@ -161,7 +161,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
               return (
                 <div
-                  key={st.id}
+                  key={st.uniqueKey || `${st.stationType}-${st.id}`}
                   onClick={() => handleSelectStation(st)}
                   className="p-3.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all flex items-center justify-between gap-3 cursor-pointer group"
                 >

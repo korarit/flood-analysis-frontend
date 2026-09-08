@@ -95,7 +95,7 @@ export function BasinMapPage() {
 
             return (
               <div
-                key={station.id}
+                key={station.uniqueKey || `${station.stationType}-${station.id}`}
                 onClick={() => setSelectedStation(station)}
                 className={`p-3 rounded-2xl transition-all cursor-pointer border ${
                   isSelected

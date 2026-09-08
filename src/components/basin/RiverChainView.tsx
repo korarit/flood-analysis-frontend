@@ -67,7 +67,7 @@ export const RiverChainView: React.FC<RiverChainViewProps> = ({ stations, basinS
                 : 'border-cyan-400 dark:border-cyan-500 shadow-sm dark:shadow-glow-cyan';
 
             return (
-              <div key={st.id} className="relative z-10 flex flex-col items-center flex-1 group">
+              <div key={st.uniqueKey || `chain-${st.id}-${idx}`} className="relative z-10 flex flex-col items-center flex-1 group">
                 
                 {/* Stage Tag */}
                 <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
