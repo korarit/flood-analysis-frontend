@@ -16,6 +16,7 @@ import {
   Filter,
   Waves,
   CloudRain,
+  Route,
 } from 'lucide-react';
 
 export function BasinMapPage() {
@@ -44,6 +45,7 @@ export function BasinMapPage() {
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isLegendOpen, setIsLegendOpen] = useState(false);
+  const [showFlowPaths, setShowFlowPaths] = useState(true);
 
   // Filter stations based on controls
   const visibleStations = stations.filter((s) => {
@@ -178,6 +180,21 @@ export function BasinMapPage() {
               <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               <span className="hidden sm:inline">{isThai ? 'คำอธิบาย' : 'Legend'}</span>
             </button>
+
+            {/* Flow Paths Layer Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowFlowPaths(!showFlowPaths)}
+              title={isThai ? 'เปิด/ปิด เส้นทางการไหลของน้ำ' : 'Toggle Flow Paths'}
+              className={`p-2.5 px-3 rounded-2xl border backdrop-blur-xl shadow-lg transition-all flex items-center gap-2 text-xs font-bold cursor-pointer ${
+                showFlowPaths
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-cyan-500/20'
+                  : 'bg-white/95 dark:bg-slate-950/90 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Route className={`w-4 h-4 ${showFlowPaths ? 'text-slate-950' : 'text-cyan-600 dark:text-cyan-400'}`} />
+              <span className="hidden sm:inline">{isThai ? 'เส้นทางน้ำ' : 'Flow Paths'}</span>
+            </button>
           </div>
 
           {/* Station Type Selector: ย้ายมาอยู่ล่างคำอธิบาย แสดงให้เลือกแบบชัดๆ default คือสถานีน้ำ */}
@@ -290,6 +307,7 @@ export function BasinMapPage() {
           onSelectStation={(st) => setSelectedStation(st)}
           baseMapType={baseMapType}
           basinSlug={currentSlug}
+          showFlowPaths={showFlowPaths}
         />
 
         {/* 3. RESPONSIVE MODAL: Desktop Centered Modal + Mobile Bottom Modal (§User Requirement) */}

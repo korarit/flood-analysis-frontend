@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Station } from '../../types/station';
 import { SituationStatus } from '../../types/basin';
@@ -15,6 +15,123 @@ interface LeafletWaterMapProps {
   userLocation?: { lat: number; long: number } | null;
   radiusKm?: number;
   basinSlug?: string;
+  showFlowPaths?: boolean;
+}
+
+/**
+ * Parses coordinates from GeoJSON LineString or MultiLineString into Leaflet [lat, lng]
+ */
+function parseCoordinatesToLatLngs(geometry: any): [number, number][][] {
+  if (!geometry || !geometry.coordinates) return [];
+  const lines: [number, number][][] = [];
+
+  if (geometry.type === 'LineString') {
+    const pts = geometry.coordinates
+      .filter((pt: any) => Array.isArray(pt) && pt.length >= 2 && !isNaN(pt[0]) && !isNaN(pt[1]))
+      .map((pt: [number, number]) => [pt[1], pt[0]] as [number, number]);
+    if (pts.length >= 2) lines.push(pts);
+  } else if (geometry.type === 'MultiLineString') {
+    for (const segment of geometry.coordinates) {
+      if (Array.isArray(segment)) {
+        const pts = segment
+          .filter((pt: any) => Array.isArray(pt) && pt.length >= 2 && !isNaN(pt[0]) && !isNaN(pt[1]))
+          .map((pt: [number, number]) => [pt[1], pt[0]] as [number, number]);
+        if (pts.length >= 2) lines.push(pts);
+      }
+    }
+  }
+  return lines;
+}
+
+/**
+ * Assigns styling for hydrological flow paths based on feature_type
+ */
+function getFlowPathStyle(featureType: string): L.PolylineOptions {
+  switch (featureType) {
+    case 'gauge_to_gauge_flowpath':
+      return {
+        color: '#00E5FF',
+        weight: 2.2,
+        opacity: 0.85,
+      };
+    case 'osm_waterway':
+      return {
+        color: '#38BDF8',
+        weight: 1.6,
+        opacity: 0.7,
+      };
+    case 'rainfall_to_gauge_flowpath':
+      return {
+        color: '#2DD4BF',
+        weight: 1.4,
+        dashArray: '5, 5',
+        opacity: 0.65,
+      };
+    case 'rainfall_drainage_branch':
+      return {
+        color: '#7DD3FC',
+        weight: 1.1,
+        opacity: 0.5,
+      };
+    default:
+      return {
+        color: '#0284C7',
+        weight: 1.5,
+        opacity: 0.6,
+      };
+  }
+}
+
+/**
+ * Creates rich HTML tooltip / popup for flow path segment
+ */
+function createFlowPathPopup(props: any, isThai: boolean): string {
+  if (!props) return '';
+  const type = props.feature_type;
+  let title = isThai ? 'โครงข่ายเส้นทางน้ำ' : 'Flow Path';
+  let details = '';
+
+  if (type === 'gauge_to_gauge_flowpath') {
+    title = isThai ? '🌊 เส้นทางน้ำเชื่อมโยงสถานีวัดน้ำ' : '🌊 Gauge Connection Flow Path';
+    details = `
+      <div><strong>${isThai ? 'ต้นทาง:' : 'From:'}</strong> ${props.from_station_name || props.from_station_id || '-'}</div>
+      <div><strong>${isThai ? 'ปลายทาง:' : 'To:'}</strong> ${props.to_station_name || props.to_station_id || 'จุดรวมน้ำหลัก'}</div>
+      <div><strong>${isThai ? 'ระยะทาง:' : 'Distance:'}</strong> ${props.distance_km ? `${props.distance_km} กม.` : '-'}</div>
+      ${props.river_slope ? `<div><strong>${isThai ? 'ความลาดชัน:' : 'Slope:'}</strong> ${(props.river_slope * 1000).toFixed(2)} ‰</div>` : ''}
+    `;
+  } else if (type === 'osm_waterway') {
+    title = isThai ? '🏞️ ลำน้ำธรรมชาติ (Waterway)' : '🏞️ Natural River / Waterway';
+    details = `
+      <div><strong>${isThai ? 'ชื่อลำน้ำ:' : 'River:'}</strong> ${props.river_name || (isThai ? 'ลำน้ำสาขา' : 'Tributary')}</div>
+      ${props.length_km ? `<div><strong>${isThai ? 'ความยาว:' : 'Length:'}</strong> ${props.length_km} กม.</div>` : ''}
+      ${props.waterway ? `<div><strong>${isThai ? 'ประเภท:' : 'Type:'}</strong> ${props.waterway}</div>` : ''}
+    `;
+  } else if (type === 'rainfall_to_gauge_flowpath') {
+    title = isThai ? '🌧️ เส้นทางน้ำหลากจากสถานีฝน' : '🌧️ Rainfall Runoff Path';
+    details = `
+      <div><strong>${isThai ? 'จากสถานีฝน:' : 'From:'}</strong> ${props.from_station_name || props.from_station_id || '-'}</div>
+      <div><strong>${isThai ? 'จุดไหลลงแม่น้ำ:' : 'Drain To:'}</strong> ${props.to_station_name || 'Stream Entry'}</div>
+      <div><strong>${isThai ? 'ระยะทาง:' : 'Distance:'}</strong> ${props.distance_km ? `${props.distance_km} กม.` : '-'}</div>
+      ${props.response_lag_hours ? `<div><strong>${isThai ? 'เวลาตอบสนอง:' : 'Lag Time:'}</strong> ~${props.response_lag_hours} ชม.</div>` : ''}
+    `;
+  } else if (type === 'rainfall_drainage_branch') {
+    title = isThai ? '💧 ลำน้ำระบายน้ำสาขาย่อย' : '💧 Drainage Branch';
+    details = `
+      <div><strong>${isThai ? 'สถานี:' : 'Station ID:'}</strong> #${props.from_station_id || '-'}</div>
+      ${props.branch_length_km ? `<div><strong>${isThai ? 'ความยาวสาขา:' : 'Branch Length:'}</strong> ${props.branch_length_km} กม.</div>` : ''}
+    `;
+  }
+
+  return `
+    <div style="font-family: inherit; font-size: 11px; line-height: 1.5; color: #0F172A; min-width: 180px;">
+      <div style="font-weight: bold; color: #0284C7; margin-bottom: 4px; border-bottom: 1px solid #E2E8F0; padding-bottom: 2px;">
+        ${title}
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        ${details}
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -86,6 +203,7 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   userLocation,
   radiusKm,
   basinSlug,
+  showFlowPaths = true,
 }) => {
   const { t, isThai } = useLanguage();
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +213,12 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   const userLayerRef = useRef<L.LayerGroup | null>(null);
   const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
   const maskLayerRef = useRef<L.Polygon | null>(null);
+  const flowPathsLayerRef = useRef<L.LayerGroup | null>(null);
+  const canvasRendererRef = useRef<L.Canvas | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+
+  // Progressive loading progress state (0 - 100%, null when not loading)
+  const [flowPathsProgress, setFlowPathsProgress] = useState<number | null>(null);
 
   // Initialize Map
   useEffect(() => {
@@ -116,12 +240,21 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
         maskPane.style.pointerEvents = 'none';
       }
 
+      // Initialize hardware-accelerated Canvas renderer to avoid mobile SVG DOM explosion
+      const canvasRenderer = L.canvas({ padding: 0.5 });
+      canvasRendererRef.current = canvasRenderer;
+
       mapInstanceRef.current = map;
+      flowPathsLayerRef.current = L.layerGroup().addTo(map);
       markersLayerRef.current = L.layerGroup().addTo(map);
       userLayerRef.current = L.layerGroup().addTo(map);
     }
 
     return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -245,6 +378,110 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
     };
   }, [basinSlug]);
 
+  // Load and progressively render Flow Paths GeoJSON (.gz) with time-sliced chunking
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const canvasRenderer = canvasRendererRef.current;
+    const flowPathsLayer = flowPathsLayerRef.current;
+    if (!map || !basinSlug || !canvasRenderer || !flowPathsLayer) return;
+
+    let isCancelled = false;
+
+    // Cancel any ongoing frame
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+
+    // Clear previous flow paths
+    flowPathsLayer.clearLayers();
+
+    if (!showFlowPaths) {
+      setFlowPathsProgress(null);
+      return;
+    }
+
+    setFlowPathsProgress(0);
+
+    r2Client.getFlowPathsGeoJson(basinSlug).then((geoJsonData) => {
+      if (isCancelled || !map) {
+        setFlowPathsProgress(null);
+        return;
+      }
+
+      if (!geoJsonData) {
+        setFlowPathsProgress(null);
+        return;
+      }
+
+      const features: any[] = Array.isArray(geoJsonData.features)
+        ? geoJsonData.features
+        : geoJsonData.type === 'Feature'
+        ? [geoJsonData]
+        : [];
+
+      if (features.length === 0) {
+        setFlowPathsProgress(null);
+        return;
+      }
+
+      const totalFeatures = features.length;
+      let currentIndex = 0;
+      // Process 150 features per frame to prevent mobile UI lag and maintain 60 FPS
+      const CHUNK_SIZE = 150;
+
+      const renderNextChunk = () => {
+        if (isCancelled || !map || !flowPathsLayerRef.current) return;
+
+        const limit = Math.min(currentIndex + CHUNK_SIZE, totalFeatures);
+
+        for (let i = currentIndex; i < limit; i++) {
+          const feat = features[i];
+          const lines = parseCoordinatesToLatLngs(feat.geometry);
+          const style = getFlowPathStyle(feat.properties?.feature_type);
+          const popupHtml = createFlowPathPopup(feat.properties, isThai);
+
+          for (const lineCoords of lines) {
+            const poly = L.polyline(lineCoords, {
+              ...style,
+              renderer: canvasRenderer,
+            });
+            if (popupHtml) {
+              poly.bindPopup(popupHtml, { className: 'flow-path-popup' });
+            }
+            flowPathsLayerRef.current.addLayer(poly);
+          }
+        }
+
+        currentIndex = limit;
+        const pct = Math.round((currentIndex / totalFeatures) * 100);
+        setFlowPathsProgress(pct);
+
+        if (currentIndex < totalFeatures) {
+          rafIdRef.current = requestAnimationFrame(renderNextChunk);
+        } else {
+          rafIdRef.current = null;
+          // Gracefully fade out the progress indicator after streaming finishes
+          setTimeout(() => {
+            if (!isCancelled) {
+              setFlowPathsProgress(null);
+            }
+          }, 1200);
+        }
+      };
+
+      rafIdRef.current = requestAnimationFrame(renderNextChunk);
+    });
+
+    return () => {
+      isCancelled = true;
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [basinSlug, showFlowPaths, isThai]);
+
   // Render Station Pulse Markers
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -341,6 +578,26 @@ export const LeafletWaterMap: React.FC<LeafletWaterMapProps> = ({
   return (
     <div className="relative w-full h-full min-h-[400px] overflow-hidden rounded-3xl border border-slate-800 shadow-2xl bg-slate-950">
       <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+      {/* Floating Progressive Loading Pill for Flow Paths */}
+      {flowPathsProgress !== null && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[450] pointer-events-none flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-950/85 backdrop-blur-md border border-cyan-500/30 shadow-2xl transition-all duration-300">
+          <div className="relative flex items-center justify-center w-3 h-3">
+            <div className="absolute w-full h-full rounded-full bg-cyan-400 opacity-75 animate-ping" />
+            <div className="w-2 h-2 rounded-full bg-cyan-400" />
+          </div>
+          <span className="text-xs font-semibold text-cyan-200 whitespace-nowrap">
+            {isThai ? `กำลังโหลดโครงข่ายเส้นทางน้ำ ${flowPathsProgress}%` : `Loading Flow Paths ${flowPathsProgress}%`}
+          </span>
+          <div className="w-16 h-1.5 bg-slate-800/90 rounded-full overflow-hidden border border-slate-700/60">
+            <div
+              className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-150 rounded-full"
+              style={{ width: `${flowPathsProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

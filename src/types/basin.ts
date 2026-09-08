@@ -27,6 +27,9 @@ export interface Basin {
   lastUpdated: string; // ISO string or Thai time
   bgGradient: string;
   accentColor: string;
+  boundaryGeojsonPath?: string | null;
+  flowPathsGeojsonPath?: string | null;
   center: [number, number]; // [lat, lng]
   zoom: number;
 }
+

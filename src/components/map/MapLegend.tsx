@@ -58,6 +58,22 @@ export const MapLegend: React.FC = () => {
           <span>{isThai ? 'พื้นที่นอกลุ่มน้ำ (เงาดำ 70%)' : 'Outside Basin (70% Mask)'}</span>
         </div>
       </div>
+
+      {/* Flow Paths Legend */}
+      <div className="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800 font-medium">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-1 rounded-full bg-[#00E5FF] shadow-xs" />
+          <span>{isThai ? 'เส้นทางน้ำเชื่อมโยงสถานี' : 'Gauge Flow Path'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-1 rounded-full bg-[#38BDF8]" />
+          <span>{isThai ? 'ลำน้ำธรรมชาติ / ทางน้ำ' : 'River / Waterway'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-0.5 border-b-2 border-dashed border-[#2DD4BF]" />
+          <span>{isThai ? 'เส้นทางน้ำหลากจากสถานีฝน' : 'Rainfall Runoff Path'}</span>
+        </div>
+      </div>
     </div>
   );
 };

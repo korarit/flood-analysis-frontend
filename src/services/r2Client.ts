@@ -1,4 +1,5 @@
 import { SituationStatus } from '../types/basin';
+import { gunzipSync as fflateGunzip, strFromU8 } from 'fflate';
 
 export const R2_PUBLIC_BASE_URL: string = (
   (import.meta as any).env?.VITE_R2_PUBLIC_BASE_URL ||
@@ -40,6 +41,7 @@ export interface R2BasinDataset {
   description: { th: string; en: string };
   areaKm2: number | null;
   boundaryGeojsonPath: string | null;
+  flowPathsGeojsonPath?: string | null;
   isActive: boolean;
   updatedAt: string;
 }
@@ -351,6 +353,93 @@ class R2Client {
   // 12. /basin/{slug}/spatial/rivers.geojson
   async getRiversGeoJson(slug: string): Promise<any | null> {
     return this.fetchJson<any>(`basin/${slug}/spatial/rivers.geojson`, { ttlMs: 600_000 });
+  }
+
+  // 13. /basin/{slug}/spatial/flow_paths.geojson.gz
+  async getFlowPathsGeoJson(slug: string): Promise<any | null> {
+    const cleanPath = `basin/${slug}/spatial/flow_paths.geojson.gz`;
+    const isDev = Boolean((import.meta as any).env?.DEV);
+    const resolvedBase = (isDev && R2_PUBLIC_BASE_URL.includes('.r2.dev'))
+      ? '/r2-dev'
+      : R2_PUBLIC_BASE_URL;
+    const url = `${resolvedBase}/${cleanPath}`;
+    const ttlMs = 600_000; // 10 minutes cache
+
+    if (this.cache.has(url)) {
+      const cached = this.cache.get(url)!;
+      if (Date.now() - cached.timestamp < cached.ttlMs) {
+        return cached.data;
+      }
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+      let res: Response | null = null;
+      try {
+        res = await fetch(url, { signal: controller.signal });
+      } catch (directErr) {
+        if (!url.startsWith('/r2-dev') && typeof window !== 'undefined') {
+          try {
+            res = await fetch(`/r2-dev/${cleanPath}`, { signal: controller.signal });
+          } catch {
+            throw directErr;
+          }
+        } else {
+          throw directErr;
+        }
+      }
+      clearTimeout(timeoutId);
+
+      if (!res || !res.ok) {
+        if (res && res.status !== 404) {
+          console.warn(`[R2Client] HTTP ${res.status} fetching ${url}`);
+        }
+        return null;
+      }
+
+      const blob = await res.blob();
+      let jsonText: string;
+
+      // Check gzip magic bytes (0x1f, 0x8b)
+      const headBuffer = await blob.slice(0, 2).arrayBuffer();
+      const head = new Uint8Array(headBuffer);
+      const isGzip = head[0] === 0x1f && head[1] === 0x8b;
+
+      if (isGzip) {
+        if (typeof DecompressionStream !== 'undefined') {
+          try {
+            const stream = blob.stream().pipeThrough(new DecompressionStream('gzip'));
+            jsonText = await new Response(stream).text();
+          } catch {
+            const arrayBuf = await blob.arrayBuffer();
+            const decompressed = fflateGunzip(new Uint8Array(arrayBuf));
+            jsonText = strFromU8(decompressed);
+          }
+        } else {
+          const arrayBuf = await blob.arrayBuffer();
+          const decompressed = fflateGunzip(new Uint8Array(arrayBuf));
+          jsonText = strFromU8(decompressed);
+        }
+      } else {
+        jsonText = await blob.text();
+      }
+
+      const data = JSON.parse(jsonText);
+      this.cache.set(url, {
+        data,
+        timestamp: Date.now(),
+        ttlMs,
+      });
+
+      return data;
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.warn(`[R2Client] Error fetching/decompressing flow paths for ${slug}:`, err.message);
+      }
+      return null;
+    }
   }
 
   /**
