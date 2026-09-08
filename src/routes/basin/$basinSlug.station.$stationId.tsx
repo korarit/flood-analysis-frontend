@@ -18,6 +18,7 @@ import {
   Map,
   ArrowLeft,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 
 export function StationDetailPage() {
@@ -151,9 +152,53 @@ export function StationDetailPage() {
         </div>
       </div>
 
+      {/* Alert Banner if station has active alert / alertReason */}
+      {station.alertReason && station.status !== 'normal' && (
+        <div
+          className={`p-4 sm:p-5 rounded-2xl border flex items-start gap-3.5 backdrop-blur-xl transition-all shadow-sm ${
+            station.status === 'critical'
+              ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-200'
+              : station.status === 'warning'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200'
+              : 'bg-amber-500/10 border-amber-500/25 text-amber-800 dark:text-amber-300'
+          }`}
+        >
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+          <div className="space-y-1 text-xs sm:text-sm">
+            <div className="font-bold flex items-center gap-2">
+              <span>
+                {station.isUpstreamAlert
+                  ? isThai
+                    ? '🌧️ แจ้งเตือนเฝ้าระวังมวลน้ำหลากจากฝนตกหนักต้นน้ำ'
+                    : 'Upstream Runoff Inflow Warning'
+                  : isThai
+                  ? 'แจ้งเตือนสถานการณ์น้ำ'
+                  : 'Situation Alert'}
+              </span>
+              <StatusBadge status={station.status} size="sm" />
+            </div>
+            <p className="opacity-90 leading-relaxed font-sans">
+              {t(station.alertReason)}
+            </p>
+            {station.isUpstreamAlert && isWater && station.waterLevel && (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium pt-0.5">
+                {isThai
+                  ? `ℹ️ ข้อมูลประกอบ: ระดับน้ำเฉพาะจุด ณ สถานีนี้ปัจจุบันยังอยู่ที่ ${station.waterLevel.bankCapacityPercent}% ของตลิ่ง แต่มีมวลน้ำหลากกำลังไหลลงมาจากพื้นที่ต้นน้ำ`
+                  : `ℹ️ Context: Current local river level is at ${station.waterLevel.bankCapacityPercent}% capacity, but heavy cumulative rainfall upstream requires early watch.`}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Telemetry Gauges Section (§21, §22) */}
       {isWater && station.waterLevel && (
-        <TelemetryGauge telemetry={station.waterLevel} />
+        <TelemetryGauge
+          telemetry={station.waterLevel}
+          stationStatus={station.status}
+          alertReason={station.alertReason}
+          isUpstreamAlert={station.isUpstreamAlert}
+        />
       )}
 
       {/* Historical Telemetry Chart (§23–§26) */}

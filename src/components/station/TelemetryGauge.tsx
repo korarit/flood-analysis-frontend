@@ -1,23 +1,45 @@
 import React from 'react';
 import { WaterLevelTelemetry } from '../../types/station';
+import { SituationStatus, LocalizedString } from '../../types/basin';
 import { useLanguage } from '../../hooks/useLanguage';
 import { Waves, Gauge, AlertTriangle, ShieldCheck, TrendingUp } from 'lucide-react';
 
 interface TelemetryGaugeProps {
   telemetry: WaterLevelTelemetry;
+  stationStatus?: SituationStatus;
+  alertReason?: LocalizedString;
+  isUpstreamAlert?: boolean;
 }
 
-export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({ telemetry }) => {
-  const { isThai } = useLanguage();
+export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({
+  telemetry,
+  stationStatus,
+  alertReason,
+  isUpstreamAlert,
+}) => {
+  const { t, isThai } = useLanguage();
   const fillPercent = telemetry.bankCapacityPercent;
+
+  const isWatchFromUpstream = isUpstreamAlert && fillPercent < 70;
 
   // Threshold colors
   const statusColor =
-    fillPercent >= 85
+    fillPercent >= 85 || stationStatus === 'critical'
       ? 'text-rose-900 dark:text-rose-400 border-rose-300 dark:border-rose-500 bg-rose-100 dark:bg-rose-950/40'
-      : fillPercent >= 70
+      : fillPercent >= 70 || stationStatus === 'warning'
       ? 'text-amber-900 dark:text-amber-400 border-amber-300 dark:border-amber-500 bg-amber-100 dark:bg-amber-950/40'
+      : isWatchFromUpstream || stationStatus === 'watch'
+      ? 'text-amber-900 dark:text-amber-400 border-amber-300 dark:border-amber-500 bg-amber-100/80 dark:bg-amber-950/30'
       : 'text-emerald-900 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500 bg-emerald-100 dark:bg-emerald-950/40';
+
+  const statusLabel =
+    fillPercent >= 85 || stationStatus === 'critical'
+      ? isThai ? '🔴 ใกล้ล้นตลิ่ง' : 'Critical'
+      : fillPercent >= 70 || stationStatus === 'warning'
+      ? isThai ? '🟡 เฝ้าระวัง' : 'Watch'
+      : isWatchFromUpstream
+      ? isThai ? '🟡 เฝ้าระวังน้ำหลากต้นน้ำ' : 'Upstream Watch'
+      : isThai ? '🟢 ปลอดภัย' : 'Safe';
 
   const progressGradient =
     fillPercent >= 85
@@ -27,6 +49,10 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({ telemetry }) => 
       : 'from-cyan-500 to-emerald-500';
 
   const marginToBank = +(telemetry.bankLevelMsl - telemetry.waterLevelMsl).toFixed(2);
+  const channelDepth =
+    telemetry.bankLevelMsl > telemetry.bedLevelMsl && telemetry.bedLevelMsl > 0
+      ? +(telemetry.bankLevelMsl - telemetry.bedLevelMsl).toFixed(2)
+      : 0;
 
   return (
     <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-background-card/90 p-6 sm:p-7 backdrop-blur-2xl shadow-md dark:shadow-xl space-y-6 transition-colors">
@@ -37,15 +63,16 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({ telemetry }) => 
           <Gauge className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
           <span>{isThai ? 'ข้อมูลโทรมาตรระดับน้ำ & ความจุลำน้ำ' : 'Water Level & River Capacity Telemetry'}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">{isThai ? 'สถานะความเสี่ยง:' : 'Risk Status:'}</span>
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusColor}`}>
-            {fillPercent >= 85
-              ? isThai ? '🔴 ใกล้ล้นตลิ่ง' : 'Critical'
-              : fillPercent >= 70
-              ? isThai ? '🟡 เฝ้าระวัง' : 'Watch'
-              : isThai ? '🟢 ปลอดภัย' : 'Safe'}
+            {statusLabel}
           </span>
+          {isWatchFromUpstream && (
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              ({isThai ? `ระดับน้ำปัจจุบันยังปกติ ${fillPercent}%` : `Local level normal: ${fillPercent}%`})
+            </span>
+          )}
         </div>
       </div>
 
@@ -121,7 +148,19 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({ telemetry }) => 
       </div>
 
       {/* Visual Bank Profile Progress Bar */}
-      <div className="space-y-2 pt-2">
+      <div className="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+          <span className="font-semibold text-slate-700 dark:text-slate-300">
+            {isThai ? 'ระดับน้ำเทียบหน้าตัดความจุลำน้ำ' : 'Water Level vs River Cross-Section'}
+          </span>
+          {channelDepth > 0 && (
+            <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+              {isThai
+                ? `ความลึกลำน้ำ ${channelDepth} ม. (น้ำลึก ${telemetry.waterLevelBed} ม. คิดเป็น ${fillPercent}%)`
+                : `Total depth: ${channelDepth}m (Water depth: ${telemetry.waterLevelBed}m = ${fillPercent}%)`}
+            </span>
+          )}
+        </div>
         <div className="flex justify-between text-xs font-mono text-slate-600 dark:text-slate-400 font-medium">
           <span>{isThai ? 'ท้องน้ำ: ' : 'Bed: '}{telemetry.bedLevelMsl} ม.รทก.</span>
           <span className="text-amber-600 dark:text-amber-400 font-bold">{isThai ? 'เตือนภัย: ' : 'Warning: '}{telemetry.warningLevelMsl} ม.รทก.</span>
@@ -130,7 +169,7 @@ export const TelemetryGauge: React.FC<TelemetryGaugeProps> = ({ telemetry }) => 
         <div className="relative w-full bg-slate-200 dark:bg-slate-950 rounded-full h-4 p-0.5 border border-slate-300 dark:border-slate-800 overflow-hidden shadow-inner">
           <div
             className={`h-full rounded-full bg-gradient-to-r ${progressGradient} transition-all duration-500 shadow-md`}
-            style={{ width: `${Math.min(100, fillPercent)}%` }}
+            style={{ width: `${Math.min(100, Math.max(2, fillPercent))}%` }}
           />
         </div>
       </div>

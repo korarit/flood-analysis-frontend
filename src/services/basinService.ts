@@ -48,13 +48,30 @@ export function mapR2StationToStation(
     const discharge = c.discharge ?? 0;
     const trend = c.trend || 'steady';
 
-    const bankLevelMsl = detailThresholds?.bankLevelMsl ?? (wlMsl > 0 ? wlMsl + 1.8 : 10.0);
-    const warningLevelMsl = detailThresholds?.warningLevelMsl ?? (wlMsl > 0 ? wlMsl + 0.8 : 8.5);
+    // Inferred bed level: from detailThresholds or inferred from wlMsl - stage
+    let bedLevelMsl = detailThresholds?.groundLevelMsl ?? detailThresholds?.bedLevelMsl ?? 0;
+    if (!bedLevelMsl && wlMsl > 0 && c.stage != null && c.stage > 0 && wlMsl > c.stage) {
+      bedLevelMsl = Number((wlMsl - c.stage).toFixed(2));
+    }
+
+    const bankLevelMsl = detailThresholds?.bankLevelMsl ?? (wlMsl > 0 ? (bedLevelMsl > 0 ? bedLevelMsl + 5.0 : wlMsl + 1.8) : 10.0);
+
+    let warningLevelMsl = detailThresholds?.warningLevelMsl;
+    // Sanitize warning level: if missing or <= bedLevelMsl (e.g. legacy minBank * 0.85 bug)
+    if (warningLevelMsl == null || (bedLevelMsl > 0 && warningLevelMsl <= bedLevelMsl)) {
+      if (bedLevelMsl > 0 && bankLevelMsl > bedLevelMsl) {
+        warningLevelMsl = Number((bedLevelMsl + (bankLevelMsl - bedLevelMsl) * 0.85).toFixed(2));
+      } else {
+        warningLevelMsl = wlMsl > 0 ? wlMsl + 0.8 : 8.5;
+      }
+    }
     const criticalLevelMsl = detailThresholds?.criticalLevelMsl ?? bankLevelMsl;
 
     let bankCapPercent = 50;
     if (c.storagePercent != null) {
       bankCapPercent = Math.round(c.storagePercent);
+    } else if (bankLevelMsl > bedLevelMsl && wlMsl >= bedLevelMsl) {
+      bankCapPercent = Math.min(Math.round(((wlMsl - bedLevelMsl) / (bankLevelMsl - bedLevelMsl)) * 100), 120);
     } else if (bankLevelMsl > 0 && wlMsl > 0) {
       bankCapPercent = Math.min(Math.round((wlMsl / bankLevelMsl) * 100), 120);
     } else if (c.status === 'critical') {
@@ -75,7 +92,7 @@ export function mapR2StationToStation(
       bankLevelMsl: Number(bankLevelMsl.toFixed(2)),
       warningLevelMsl: Number(warningLevelMsl.toFixed(2)),
       criticalLevelMsl: Number(criticalLevelMsl.toFixed(2)),
-      bedLevelMsl: 0,
+      bedLevelMsl: Number(bedLevelMsl.toFixed(2)),
       bankCapacityPercent: bankCapPercent,
       maxDischargeCapacity: maxDischarge,
       dischargePercent,

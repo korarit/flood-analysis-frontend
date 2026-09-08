@@ -126,15 +126,36 @@ export async function fetchStationDetailAndRelations(
       }
 
       // Enrich water level thresholds
-      if (baseStation.waterLevel && dSt.thresholds) {
-        if (dSt.thresholds.bankLevelMsl != null) {
-          baseStation.waterLevel.bankLevelMsl = dSt.thresholds.bankLevelMsl;
+      if (baseStation.waterLevel) {
+        const dLoc = dSt.location;
+        const dThresh = dSt.thresholds;
+        const bedMsl = dThresh?.groundLevelMsl ?? dThresh?.bedLevelMsl ?? dLoc?.groundLevelMsl;
+        if (bedMsl != null && bedMsl > 0) {
+          baseStation.waterLevel.bedLevelMsl = bedMsl;
         }
-        if (dSt.thresholds.warningLevelMsl != null) {
-          baseStation.waterLevel.warningLevelMsl = dSt.thresholds.warningLevelMsl;
+        if (dThresh?.bankLevelMsl != null) {
+          baseStation.waterLevel.bankLevelMsl = dThresh.bankLevelMsl;
         }
-        if (dSt.thresholds.criticalLevelMsl != null) {
-          baseStation.waterLevel.criticalLevelMsl = dSt.thresholds.criticalLevelMsl;
+        if (dThresh?.criticalLevelMsl != null) {
+          baseStation.waterLevel.criticalLevelMsl = dThresh.criticalLevelMsl;
+        }
+
+        // Sanitize warningLevelMsl: if below bedLevelMsl, recalculate to realistic 85% channel depth
+        if (dThresh?.warningLevelMsl != null) {
+          let warn = dThresh.warningLevelMsl;
+          const bank = baseStation.waterLevel.bankLevelMsl;
+          const bed = baseStation.waterLevel.bedLevelMsl;
+          if (bed > 0 && warn <= bed && bank > bed) {
+            warn = Number((bed + (bank - bed) * 0.85).toFixed(2));
+          }
+          baseStation.waterLevel.warningLevelMsl = warn;
+        }
+
+        // Ensure waterLevelBed matches bedLevelMsl if available
+        const wlMsl = baseStation.waterLevel.waterLevelMsl;
+        const bed = baseStation.waterLevel.bedLevelMsl;
+        if (bed > 0 && wlMsl >= bed) {
+          baseStation.waterLevel.waterLevelBed = Number((wlMsl - bed).toFixed(2));
         }
       }
     }

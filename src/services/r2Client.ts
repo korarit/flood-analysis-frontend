@@ -132,6 +132,8 @@ export interface R2StationDetailDataset {
       criticalLevelMsl: number | null;
     };
     thresholds: {
+      groundLevelMsl?: number | null;
+      bedLevelMsl?: number | null;
       bankLevelMsl: number | null;
       warningLevelMsl: number | null;
       criticalLevelMsl: number | null;
