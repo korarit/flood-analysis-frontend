@@ -255,12 +255,12 @@ export function getAllBasins(): Basin[] {
 /**
  * 2. Fetch Basin Overview from R2 (/basin/{slug}/overview.json & basin.json)
  */
-export async function fetchBasinBySlug(slug: string): Promise<Basin | undefined> {
+export async function fetchBasinBySlug(slug: string, bypassCache = false): Promise<Basin | undefined> {
   const normalized = slug.toLowerCase().trim();
   try {
     const [overview, meta] = await Promise.all([
-      r2Client.getBasinOverview(normalized),
-      r2Client.getBasinMetadata(normalized),
+      r2Client.getBasinOverview(normalized, bypassCache),
+      r2Client.getBasinMetadata(normalized, bypassCache),
     ]);
 
     const preset = BASINS_DATA.find((b) => b.id === normalized || b.id === normalized.replace('-basin', ''));
@@ -375,13 +375,13 @@ export function getStationsForBasin(basinId: string): Station[] {
  * Backend already filters to only include stations with non-missing telemetry.
  * Frontend shows all stations present in chain.json (ordered upstream→downstream).
  */
-export async function fetchRiverChainStations(basinSlug: string): Promise<Station[]> {
+export async function fetchRiverChainStations(basinSlug: string, bypassCache = false): Promise<Station[]> {
   const normalized = basinSlug.toLowerCase().trim();
 
   try {
     const [chainData, stations] = await Promise.all([
-      r2Client.getRiverChain(normalized),
-      fetchStationsForBasin(normalized),
+      r2Client.getRiverChain(normalized, bypassCache),
+      fetchStationsForBasin(normalized, bypassCache),
     ]);
 
     if (chainData && chainData.stations && chainData.stations.length > 0) {

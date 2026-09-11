@@ -270,7 +270,7 @@ class R2Client {
   private cache = new Map<string, CacheItem<any>>();
 
   /**
-   * Universal fetcher with client-side cache and timeout
+   * Universal fetcher with client-side cache, conditional cache-busting, and timeout
    */
   async fetchJson<T>(
     path: string,
@@ -285,8 +285,11 @@ class R2Client {
     const url = `${resolvedBase}/${cleanPath}`;
     const ttlMs = options.ttlMs ?? 60_000; // Default 1 minute cache
 
-    if (!options.bypassCache && this.cache.has(url)) {
-      const cached = this.cache.get(url)!;
+    // Use cleanPath as in-memory cache key to prevent cache fragmentation
+    const cacheKey = cleanPath;
+
+    if (!options.bypassCache && this.cache.has(cacheKey)) {
+      const cached = this.cache.get(cacheKey)!;
       if (Date.now() - cached.timestamp < cached.ttlMs) {
         return cached.data as T;
       }
@@ -296,22 +299,37 @@ class R2Client {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
 
+      // When bypassCache is requested, append _t=Date.now() to burst CDN & browser disk caches.
+      // In normal requests, keep the clean URL so CDN and browser HTTP cache can be shared efficiently.
+      const targetUrl = options.bypassCache
+        ? `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`
+        : url;
+
+      const fetchHeaders: Record<string, string> = {
+        Accept: 'application/json',
+      };
+      if (options.bypassCache) {
+        fetchHeaders['Cache-Control'] = 'no-cache';
+        fetchHeaders['Pragma'] = 'no-cache';
+      }
+
+      const fetchOptions: RequestInit = {
+        signal: controller.signal,
+        cache: options.bypassCache ? 'reload' : 'default',
+        headers: fetchHeaders,
+      };
+
       let res: Response | null = null;
       try {
-        res = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            Accept: 'application/json',
-          },
-        });
+        res = await fetch(targetUrl, fetchOptions);
       } catch (directErr: any) {
         // Fallback: If fetch failed and we haven't tried /r2-dev yet, try dev proxy
         if (!url.startsWith('/r2-dev') && typeof window !== 'undefined') {
           try {
-            res = await fetch(`/r2-dev/${cleanPath}`, {
-              signal: controller.signal,
-              headers: { Accept: 'application/json' },
-            });
+            const fallbackTarget = options.bypassCache
+              ? `/r2-dev/${cleanPath}${cleanPath.includes('?') ? '&' : '?'}_t=${Date.now()}`
+              : `/r2-dev/${cleanPath}`;
+            res = await fetch(fallbackTarget, fetchOptions);
           } catch {
             throw directErr;
           }
@@ -329,7 +347,7 @@ class R2Client {
       }
 
       const data = (await res.json()) as T;
-      this.cache.set(url, {
+      this.cache.set(cacheKey, {
         data,
         timestamp: Date.now(),
         ttlMs,
@@ -350,8 +368,8 @@ class R2Client {
   }
 
   // 2. /basin/{slug}/basin.json
-  async getBasinMetadata(slug: string): Promise<R2BasinDataset | null> {
-    return this.fetchJson<R2BasinDataset>(`basin/${slug}/basin.json`, { ttlMs: 300_000 });
+  async getBasinMetadata(slug: string, bypassCache = false): Promise<R2BasinDataset | null> {
+    return this.fetchJson<R2BasinDataset>(`basin/${slug}/basin.json`, { ttlMs: 300_000, bypassCache });
   }
 
   // 3. /basin/{slug}/overview.json
@@ -383,30 +401,32 @@ class R2Client {
   async getStationDetail(
     slug: string,
     stationId: string,
-    type: 'water_level' | 'rainfall' = 'water_level'
+    type: 'water_level' | 'rainfall' = 'water_level',
+    bypassCache = false
   ): Promise<R2StationDetailDataset | null> {
     const folder = type === 'water_level' ? 'waterlevel_station' : 'rainfall_station';
-    return this.fetchJson<R2StationDetailDataset>(`${folder}/${slug}/${stationId}/detail.json`, { ttlMs: 300_000 });
+    return this.fetchJson<R2StationDetailDataset>(`${folder}/${slug}/${stationId}/detail.json`, { ttlMs: 300_000, bypassCache });
   }
 
   // 7. /{type}_station/{slug}/{stationId}/relations.json
   async getStationRelations(
     slug: string,
     stationId: string,
-    type: 'water_level' | 'rainfall' = 'water_level'
+    type: 'water_level' | 'rainfall' = 'water_level',
+    bypassCache = false
   ): Promise<R2StationRelationsDataset | null> {
     const folder = type === 'water_level' ? 'waterlevel_station' : 'rainfall_station';
-    return this.fetchJson<R2StationRelationsDataset>(`${folder}/${slug}/${stationId}/relations.json`, { ttlMs: 120_000 });
+    return this.fetchJson<R2StationRelationsDataset>(`${folder}/${slug}/${stationId}/relations.json`, { ttlMs: 120_000, bypassCache });
   }
 
   // 8. /basin/{slug}/river/chain.json
-  async getRiverChain(slug: string): Promise<R2RiverChainDataset | null> {
-    return this.fetchJson<R2RiverChainDataset>(`basin/${slug}/river/chain.json`, { ttlMs: 300_000 });
+  async getRiverChain(slug: string, bypassCache = false): Promise<R2RiverChainDataset | null> {
+    return this.fetchJson<R2RiverChainDataset>(`basin/${slug}/river/chain.json`, { ttlMs: 300_000, bypassCache });
   }
 
   // 9. /basin/{slug}/events/feed.json
   async getEventsFeed(slug: string, bypassCache = false): Promise<R2EventsFeedDataset | null> {
-    return this.fetchJson<R2EventsFeedDataset>(`basin/${slug}/events/feed.json`, { ttlMs: 60_000, bypassCache });
+    return this.fetchJson<R2EventsFeedDataset>(`basin/${slug}/events/feed.json`, { ttlMs: 180_000, bypassCache });
   }
 
   // 10. /basin/{slug}/report/bulletin-latest.json
@@ -415,27 +435,28 @@ class R2Client {
   }
 
   // 11. /basin/{slug}/spatial/boundary.geojson
-  async getBoundaryGeoJson(slug: string): Promise<any | null> {
-    return this.fetchJson<any>(`basin/${slug}/spatial/boundary.geojson`, { ttlMs: 600_000 });
+  async getBoundaryGeoJson(slug: string, bypassCache = false): Promise<any | null> {
+    return this.fetchJson<any>(`basin/${slug}/spatial/boundary.geojson`, { ttlMs: 3600_000, bypassCache });
   }
 
   // 12. /basin/{slug}/spatial/rivers.geojson
-  async getRiversGeoJson(slug: string): Promise<any | null> {
-    return this.fetchJson<any>(`basin/${slug}/spatial/rivers.geojson`, { ttlMs: 600_000 });
+  async getRiversGeoJson(slug: string, bypassCache = false): Promise<any | null> {
+    return this.fetchJson<any>(`basin/${slug}/spatial/rivers.geojson`, { ttlMs: 3600_000, bypassCache });
   }
 
   // 13. /basin/{slug}/spatial/flow_paths.geojson.gz
-  async getFlowPathsGeoJson(slug: string): Promise<any | null> {
+  async getFlowPathsGeoJson(slug: string, bypassCache = false): Promise<any | null> {
     const cleanPath = `basin/${slug}/spatial/flow_paths.geojson.gz`;
     const isDev = Boolean((import.meta as any).env?.DEV);
     const resolvedBase = (isDev && R2_PUBLIC_BASE_URL.includes('.r2.dev'))
       ? '/r2-dev'
       : R2_PUBLIC_BASE_URL;
     const url = `${resolvedBase}/${cleanPath}`;
-    const ttlMs = 600_000; // 10 minutes cache
+    const ttlMs = 3600_000; // 1 hour cache
+    const cacheKey = cleanPath;
 
-    if (this.cache.has(url)) {
-      const cached = this.cache.get(url)!;
+    if (!bypassCache && this.cache.has(cacheKey)) {
+      const cached = this.cache.get(cacheKey)!;
       if (Date.now() - cached.timestamp < cached.ttlMs) {
         return cached.data;
       }
@@ -445,13 +466,32 @@ class R2Client {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
+      const targetUrl = bypassCache
+        ? `${url}${url.includes('?') ? '&' : '?'}_t=${Date.now()}`
+        : url;
+
+      const fetchHeaders: Record<string, string> = {};
+      if (bypassCache) {
+        fetchHeaders['Cache-Control'] = 'no-cache';
+        fetchHeaders['Pragma'] = 'no-cache';
+      }
+
+      const fetchOptions: RequestInit = {
+        signal: controller.signal,
+        cache: bypassCache ? 'reload' : 'default',
+        headers: fetchHeaders,
+      };
+
       let res: Response | null = null;
       try {
-        res = await fetch(url, { signal: controller.signal });
+        res = await fetch(targetUrl, fetchOptions);
       } catch (directErr) {
         if (!url.startsWith('/r2-dev') && typeof window !== 'undefined') {
           try {
-            res = await fetch(`/r2-dev/${cleanPath}`, { signal: controller.signal });
+            const fallbackTarget = bypassCache
+              ? `/r2-dev/${cleanPath}${cleanPath.includes('?') ? '&' : '?'}_t=${Date.now()}`
+              : `/r2-dev/${cleanPath}`;
+            res = await fetch(fallbackTarget, fetchOptions);
           } catch {
             throw directErr;
           }
@@ -496,7 +536,7 @@ class R2Client {
       }
 
       const data = JSON.parse(jsonText);
-      this.cache.set(url, {
+      this.cache.set(cacheKey, {
         data,
         timestamp: Date.now(),
         ttlMs,
