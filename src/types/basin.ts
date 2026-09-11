@@ -8,7 +8,7 @@ export interface LocalizedString {
 }
 
 export interface Basin {
-  id: string; // e.g. 'yom', 'nan', 'ping', 'wang', 'chao-phraya'
+  id: string; // e.g. 'yom', 'nan', 'ping', 'wang', 'chi', 'mun'
   code: string; // e.g. '08'
   name: LocalizedString;
   description: LocalizedString;
