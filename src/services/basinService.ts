@@ -207,27 +207,31 @@ export async function fetchAllBasins(bypassCache = false): Promise<Basin[]> {
           id: r2b.slug || r2b.id,
           code: r2b.code || preset?.code || '00',
           name: r2b.name || preset?.name || { th: r2b.slug, en: r2b.slug },
-          description: preset?.description || {
+          description: r2b.description || preset?.description || {
             th: `ลุ่มน้ำ${r2b.name.th} พื้นที่ประมาณ ${r2b.areaKm2 ? r2b.areaKm2.toLocaleString() : '-'} ตร.กม.`,
             en: `${r2b.name.en} covers approximately ${r2b.areaKm2 ? r2b.areaKm2.toLocaleString() : '-'} sq km.`,
           },
-          mainRivers: preset?.mainRivers || [{ th: `แม่น้ำ${r2b.name.th.replace('ลุ่มน้ำ', '')}`, en: `${r2b.name.en}` }],
-          provinces: preset?.provinces || [],
+          mainRivers: (r2b.mainRivers && r2b.mainRivers.length > 0)
+            ? r2b.mainRivers
+            : (preset?.mainRivers || [{ th: `แม่น้ำ${r2b.name.th.replace('ลุ่มน้ำ', '')}`, en: `${r2b.name.en}` }]),
+          provinces: (r2b.provinces && r2b.provinces.length > 0)
+            ? r2b.provinces
+            : (preset?.provinces || []),
           areaKm2: r2b.areaKm2 || preset?.areaKm2 || 0,
           totalStations: r2b.totalStations,
-          waterLevelStationsCount: preset?.waterLevelStationsCount || Math.round(r2b.totalStations * 0.3),
-          rainfallStationsCount: preset?.rainfallStationsCount || Math.round(r2b.totalStations * 0.7),
+          waterLevelStationsCount: r2b.waterLevelStationsCount ?? preset?.waterLevelStationsCount ?? Math.round(r2b.totalStations * 0.3),
+          rainfallStationsCount: r2b.rainfallStationsCount ?? preset?.rainfallStationsCount ?? Math.round(r2b.totalStations * 0.7),
           overallStatus: r2b.overallStatus || 'normal',
-          statusSummary: preset?.statusSummary || {
+          statusSummary: r2b.statusSummary || preset?.statusSummary || {
             watchCount: 0,
             risingCount: 0,
             heavyRainCount: 0,
           },
           lastUpdated: formatThaiTime(r2b.lastUpdated),
-          bgGradient: preset?.bgGradient || 'from-cyan-950 via-slate-900 to-blue-950',
-          accentColor: preset?.accentColor || '#06B6D4',
-          center: preset?.center || [17.0, 100.0],
-          zoom: preset?.zoom || 8,
+          bgGradient: r2b.bgGradient || preset?.bgGradient || 'from-cyan-950 via-slate-900 to-blue-950',
+          accentColor: r2b.accentColor || preset?.accentColor || '#06B6D4',
+          center: r2b.center || preset?.center || [17.0, 100.0],
+          zoom: r2b.zoom || preset?.zoom || 8,
         };
       });
 

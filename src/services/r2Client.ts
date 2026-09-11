@@ -18,10 +18,28 @@ export interface R2BasinSummaryItem {
   slug: string;
   code: string;
   name: { th: string; en: string };
+  description?: { th: string; en: string };
+  mainRivers?: Array<{ th: string; en: string }>;
+  provinces?: Array<{ th: string; en: string }>;
   totalStations: number;
+  waterLevelStationsCount?: number;
+  rainfallStationsCount?: number;
   overallStatus: SituationStatus;
+  statusSummary?: {
+    normalCount: number;
+    watchCount: number;
+    warningCount: number;
+    criticalCount: number;
+    missingCount: number;
+    risingCount: number;
+    heavyRainCount: number;
+  };
   lastUpdated: string;
   areaKm2?: number;
+  bgGradient?: string;
+  accentColor?: string;
+  center?: [number, number];
+  zoom?: number;
 }
 
 export interface R2BasinsListDataset {
