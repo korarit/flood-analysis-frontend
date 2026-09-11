@@ -218,6 +218,36 @@ export interface R2EventsFeedDataset {
   }>;
 }
 
+export interface R2StationCurrentItem {
+  timestamp: string;
+  status: SituationStatus;
+  freshness: 'fresh' | 'delayed' | 'missing';
+  alertReason?: { th: string; en: string };
+  isUpstreamAlert?: boolean;
+  stage?: number | null;
+  discharge?: number | null;
+  waterLevelMsl?: number | null;
+  storagePercent?: number | null;
+  trend?: 'rising' | 'steady' | 'falling';
+  rainfall1h?: number | null;
+  rainfall3h?: number | null;
+  rainfall6h?: number | null;
+  rainfall24h?: number | null;
+  rainfallToday?: number | null;
+  intensity?: string;
+  updatedAt: string;
+}
+
+export interface R2BasinCurrentDataset {
+  schemaVersion: string;
+  datasetVersion: string;
+  basin: string;
+  type: 'water_level' | 'rainfall';
+  generatedAt: string;
+  totalStations: number;
+  stations: Record<string, R2StationCurrentItem>;
+}
+
 class R2Client {
   private cache = new Map<string, CacheItem<any>>();
 
@@ -319,6 +349,16 @@ class R2Client {
   // 5. /rainfall_station/{slug}/stations.json
   async getRainfallStations(slug: string, bypassCache = false): Promise<R2StationListDataset | null> {
     return this.fetchJson<R2StationListDataset>(`rainfall_station/${slug}/stations.json`, { ttlMs: 60_000, bypassCache });
+  }
+
+  // 5.1 /waterlevel_station/{slug}/current.json (Keyed by stationId)
+  async getWaterlevelCurrent(slug: string, bypassCache = false): Promise<R2BasinCurrentDataset | null> {
+    return this.fetchJson<R2BasinCurrentDataset>(`waterlevel_station/${slug}/current.json`, { ttlMs: 60_000, bypassCache });
+  }
+
+  // 5.2 /rainfall_station/{slug}/current.json (Keyed by stationId)
+  async getRainfallCurrent(slug: string, bypassCache = false): Promise<R2BasinCurrentDataset | null> {
+    return this.fetchJson<R2BasinCurrentDataset>(`rainfall_station/${slug}/current.json`, { ttlMs: 60_000, bypassCache });
   }
 
   // 6. /{type}_station/{slug}/{stationId}/detail.json

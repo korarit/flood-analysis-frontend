@@ -39,3 +39,4 @@ Thumbs.db
 .vite/
 .eslintcache
 scratch/
+.vercel
