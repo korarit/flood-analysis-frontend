@@ -33,14 +33,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const root = document.documentElement;
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (theme === 'dark') {
       root.classList.add('dark');
       root.classList.remove('light');
       root.style.colorScheme = 'dark';
+      if (metaThemeColor) metaThemeColor.setAttribute('content', '#070B12');
     } else {
       root.classList.remove('dark');
       root.classList.add('light');
       root.style.colorScheme = 'light';
+      if (metaThemeColor) metaThemeColor.setAttribute('content', '#F8FAFC');
     }
   }, [theme]);
 

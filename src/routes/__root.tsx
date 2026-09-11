@@ -7,7 +7,7 @@ export const rootRoute = createRootRoute({
   component: () => (
     <ThemeProvider>
       <LanguageProvider>
-        <div className="min-h-screen bg-background text-slate-100 dark:text-slate-100 light:text-slate-900 font-sans selection:bg-cyan-500 selection:text-black transition-colors duration-200">
+        <div className="min-h-screen bg-slate-50 dark:bg-background text-slate-900 dark:text-slate-100 font-sans selection:bg-cyan-500 selection:text-black transition-colors duration-200">
           <Outlet />
         </div>
       </LanguageProvider>
